@@ -133,8 +133,14 @@ The response should report `ok: true` and `configured: true` before testing real
 
 ## Screenshots
 
-- `docs/screenshots/text-to-image-generated.png`
-- `docs/screenshots/image-to-image-generated.png`
-- `docs/screenshots/desktop-generated.png`
-- `docs/screenshots/mobile-open.png`
-- `docs/screenshots/error-state.png`
+### Text-to-image
+
+With no canvas image selected, the prompt bar runs text-to-image generation and inserts the new result as an editable canvas object.
+
+![Text-to-image result in Creation Studio](docs/screenshots/text-to-image-generated.png)
+
+### Image-to-image
+
+With the source image selected, the same prompt bar runs image-to-image editing. The example adds a black hat while keeping the original background and pose, and the original image remains available underneath for comparison.
+
+![Image-to-image result in Creation Studio](docs/screenshots/image-to-image-generated.png)

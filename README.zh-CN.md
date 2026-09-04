@@ -133,8 +133,14 @@ curl http://127.0.0.1:4300/api/health
 
 ## 截图
 
-- `docs/screenshots/text-to-image-generated.png`
-- `docs/screenshots/image-to-image-generated.png`
-- `docs/screenshots/desktop-generated.png`
-- `docs/screenshots/mobile-open.png`
-- `docs/screenshots/error-state.png`
+### 文生图
+
+当画布中没有选中图片时，底部 Prompt 会执行文生图，并把新的结果作为可继续编辑的画布对象加入。
+
+![Creation Studio 文生图结果](docs/screenshots/text-to-image-generated.png)
+
+### 图生图
+
+当选中原图时，同一个 Prompt 输入框会执行图生图。下面的示例给人物增加黑色帽子，同时保持原背景和姿势，原图也会保留在下方方便对比。
+
+![Creation Studio 图生图结果](docs/screenshots/image-to-image-generated.png)
