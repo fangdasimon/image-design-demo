@@ -8,11 +8,8 @@ import {
 
 const aiConfig = getAiConfig();
 
-export default async function handler(request) {
+export async function POST(request) {
   const headers = corsHeaders();
-  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
-  if (request.method !== 'POST') return json({ error: 'Method not allowed.' }, 405, headers);
-
   try {
     const body = await request.json();
     const { buffer, contentType } = await generateImage(body, aiConfig);
@@ -24,6 +21,10 @@ export default async function handler(request) {
     const status = getErrorStatus(error);
     return json({ code: getErrorCode(status, error), error: getSafeErrorMessage(error, status) }, status, headers);
   }
+}
+
+export function OPTIONS() {
+  return new Response(null, { status: 204, headers: corsHeaders() });
 }
 
 function corsHeaders() {

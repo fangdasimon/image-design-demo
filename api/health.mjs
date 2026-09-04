@@ -2,11 +2,8 @@ import { getAiConfig } from '../server/ai-generation.mjs';
 
 const aiConfig = getAiConfig();
 
-export default function handler(request) {
+export function GET() {
   const headers = corsHeaders();
-  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
-  if (request.method !== 'GET') return json({ error: 'Method not allowed.' }, 405, headers);
-
   return json({
     ok: true,
     configured: Boolean(aiConfig.client),
@@ -14,6 +11,10 @@ export default function handler(request) {
     imageModel: aiConfig.imageModel,
     imageProvider: aiConfig.imageProvider
   }, 200, headers);
+}
+
+export function OPTIONS() {
+  return new Response(null, { status: 204, headers: corsHeaders() });
 }
 
 function corsHeaders() {
