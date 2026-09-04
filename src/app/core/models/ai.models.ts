@@ -33,7 +33,7 @@ export interface AiState {
 }
 
 export const DEFAULT_PROMPTS = [
-  'Minimal editorial portrait in sculptural light',
+  'A woman in a white dress standing in a bright studio, soft shadows, realistic photography.',
   'Monochrome architectural study with soft shadows',
   'Quiet still life with paper, glass and natural light'
 ];

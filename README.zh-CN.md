@@ -1,5 +1,3 @@
-cropcrop
-
 # Creation Studio
 
 Creation Studio 是一个基于 Angular 和 TUI Image Editor 的黑白灰风格图片编辑器，AI 生成通过本地 Hugging Face 代理完成。
@@ -12,6 +10,13 @@ Creation Studio 是一个基于 Angular 和 TUI Image Editor 的黑白灰风格�
 - 可以上传本地图片，并在 TUI 画布里继续处理。
 - 支持裁剪、旋转、文字、灰度、撤销、重做、拖动画布、缩放、重置和导出 PNG。
 - 支持文生图和图生图，生成结果会自动作为新对象加入画布。
+
+## 提交清单
+
+- 完整源代码：当前公共 GitHub 仓库。
+- 在线 Demo：[image-design-demo.vercel.app](https://image-design-demo.vercel.app/)。
+- 中英双语文档：GitHub 默认展示英文版 [README.md](README.md)，本文件为中文版。
+- 应用和 AI 生成内容截图：见 [docs/screenshots](docs/screenshots)。
 
 ## 运行要求
 
@@ -65,14 +70,29 @@ HF_IMAGE_PROVIDER=fal-ai
 ### 文生图
 
 1. 不选中画布中的图片。
-2. 在底部输入 Prompt，点击 `Generate`。
+2. 在底部输入 `A woman in a white dress standing in a bright studio, soft shadows, realistic photography.`，点击 `Generate`。
 3. 生成图片会作为新对象加入画布。
 
 ### 图生图
 
 1. 点击选中画布中的图片，确认出现橙黄色选框。
-2. 输入修改要求，例如：`保持原图真实摄影风格，给人物戴一顶帽子。`
+2. 输入 `Add a black hat to the woman while keeping the background and pose unchanged.`。
 3. 点击 `Generate`。生成结果会作为新对象加入画布，原图保留。
+
+## 设计决策
+
+- 使用 Angular 管理应用外壳和状态，使用成熟的 TUI Image Editor 提供画布编辑能力。
+- AI 请求统一经过服务端代理，确保 `HF_TOKEN` 不会进入浏览器代码或 Git 仓库。
+- 文生图和图生图使用不同的请求结构与可配置模型。选中画布图片就是明确的模式切换，同一个 Prompt 输入框即可完成两条流程。
+- 画布文档和 AI 历史保存在浏览器本地，刷新页面后仍可恢复，不需要账号或数据库。
+- 界面保持 Creation 黑白灰风格，只用橙色表示当前选中对象，方便检查编辑目标。
+
+## 开发挑战与解决方案
+
+- TUI Image Editor 旋转时会改变内部画布尺寸。现在会在下一帧同步自定义视口，因此旋转 30 度时图片仍保持原始比例并位于画布中心。
+- 图生图需要把浏览器中的 data URL 作为二进制图片发送给模型。代理会校验 data URL、转换为 `Blob`，并在服务端补充图像编辑约束。
+- AI 服务可能较慢或暂时不可用。界面展示准备中、生成中、处理中三个阶段，并把鉴权、额度、限流等常见错误转换成可读提示；临时错误支持重试。
+- AI 结果需要成为真正可编辑的画布对象。编辑器会把结果作为新对象加入并按工作区缩放，同时保留原图用于对比。
 
 ## 离线 Demo 模式
 
@@ -97,11 +117,11 @@ Demo 模式不依赖网络，也能跑通编辑器和生成流程，只是返回
 1. 先启动 `npm run start:api`。
 2. 再启动 `npm start`。
 3. 打开 `http://localhost:4200`。
-4. 上传一张图片，或者直接使用默认示例图。
-5. 输入一个 Prompt，比如 `Minimal editorial portrait in sculptural light`。
-6. 点击 Generate，确认页面出现加载状态。
-7. 等待生成结果出现在画布中。
-8. 点击 Export，确认浏览器开始下载 PNG。
+4. 保持默认示例图，并确认当前没有选中图片。
+5. 输入 `A woman in a white dress standing in a bright studio, soft shadows, realistic photography.`，点击 `Generate`。
+6. 确认页面出现加载状态，并确认新的 AI 图片加入画布。
+7. 选中原始画布图片，输入 `Add a black hat to the woman while keeping the background and pose unchanged.`，再次点击 `Generate`。
+8. 确认修改结果加入画布且原图仍保留，然后点击 `Export`，确认浏览器开始下载 PNG。
 
 可以先用健康检查确认 API 配置，不会输出 Token：
 
@@ -113,6 +133,8 @@ curl http://127.0.0.1:4300/api/health
 
 ## 截图
 
+- `docs/screenshots/text-to-image-generated.png`
+- `docs/screenshots/image-to-image-generated.png`
 - `docs/screenshots/desktop-generated.png`
 - `docs/screenshots/mobile-open.png`
 - `docs/screenshots/error-state.png`
