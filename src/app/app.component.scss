@@ -1,0 +1,57 @@
+:host { display: block; min-height: 100dvh; }
+
+.studio-shell { min-height: 100dvh; overflow: hidden; background: var(--mist); color: var(--ink); }
+.topbar { position: relative; z-index: 5; display: grid; grid-template-columns: minmax(210px, 1fr) auto minmax(290px, 1fr); align-items: center; min-height: 76px; gap: 24px; background: var(--paper); color: var(--ink); padding: 0 24px; border-bottom: 1px solid var(--line); }
+.brand-lockup { display: flex; align-items: center; gap: 11px; min-width: 210px; }
+.brand-lockup > div:last-child { display: grid; gap: 2px; }
+.brand-lockup strong { color: var(--ink); font-size: 13px; font-weight: 120; letter-spacing: .02em; }
+.brand-lockup span { color: var(--muted); font-size: 10px; }
+.brand-mark { position: relative; width: 27px; height: 27px; flex: 0 0 auto; border: 2px solid var(--ink); }
+.brand-mark span { position: absolute; display: block; background: var(--ink); }
+.brand-mark span:first-child { top: 5px; left: 5px; width: 13px; height: 13px; }
+.brand-mark span:last-child { right: 4px; bottom: 4px; width: 7px; height: 7px; background: var(--muted); }
+.canvas-title { display: flex; align-items: center; justify-content: center; gap: 9px; min-width: 0; white-space: nowrap; font-size: 11px; }
+.canvas-title strong { font-weight: 120; }
+.canvas-status-dot { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: var(--ink); }
+.save-state { padding-left: 10px; border-left: 1px solid var(--line); color: var(--muted); }
+.top-actions { display: flex; align-items: center; justify-content: flex-end; gap: 3px; min-width: 290px; }
+.top-actions button { color: var(--ink); }
+.top-actions .mat-mdc-icon-button { --mdc-icon-button-icon-color: var(--ink); }
+.top-actions .mat-mdc-icon-button:hover { background: var(--primary-grey); }
+.export-top { min-height: 34px; margin-left: 10px; padding-left: 16px; border-left: 1px solid var(--line); border-radius: 0; background-color: transparent !important; --mdc-filled-button-container-color: transparent; --mdc-filled-button-label-text-color: var(--ink); color: var(--ink) !important; font-size: 11px; }
+.export-top mat-icon { margin-right: 5px; font-size: 17px; }
+.board-shell { position: relative; min-height: calc(100dvh - 76px); overflow: hidden; background: var(--mist); }
+.canvas-stage { position: absolute; inset: 0; overflow: hidden; background: var(--paper); }
+.canvas-stage app-image-editor { display: block; width: 100%; height: 100%; }
+.board-footer { position: absolute; z-index: 4; right: 24px; bottom: 20px; display: flex; align-items: center; gap: 12px; border: 1px solid var(--line); border-radius: 20px; background: rgba(255, 255, 255, .92); padding: 7px 10px; color: var(--muted); font-size: 10px; }
+.footer-status { display: flex; align-items: center; gap: 7px; color: var(--ink); }
+.status-dot { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: var(--ink); }
+.ai-composer { position: absolute; z-index: 10; left: 50%; bottom: 20px; width: min(720px, calc(100% - 48px)); transform: translateX(-50%); border: 1px solid var(--line); border-radius: 8px; background: rgba(255, 255, 255, .97); padding: 6px 10px 6px 14px; box-shadow: 0 14px 38px rgba(0, 0, 0, .13); }
+.ai-composer app-ai-generation-panel { display: block; }
+@media (max-width: 900px) {
+  .topbar { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 12px; padding-inline: 16px; }
+  .brand-lockup { min-width: 0; }
+  .top-actions { min-width: 0; }
+  .board-toolbar { left: 14px; right: 14px; }
+}
+
+@media (max-width: 767px) {
+  .topbar { min-height: 58px; }
+  .brand-lockup span { display: none; }
+  .canvas-title { gap: 6px; font-size: 10px; }
+  .save-state { display: none; }
+  .top-actions .mat-mdc-icon-button[aria-label="Upload image"] { display: none; }
+  .top-actions { gap: 0; }
+  .top-actions .mat-mdc-icon-button { display: none; }
+  .export-top span { display: none; }
+  .export-top { min-width: 36px; width: 36px; padding: 0; }
+  .export-top mat-icon { margin: 0; }
+  .board-shell { min-height: calc(100dvh - 58px); }
+  .canvas-stage { inset: 0; }
+  .board-footer { right: 12px; bottom: 12px; }
+  .ai-composer { right: 8px; bottom: 8px; left: 8px; width: auto; transform: none; padding: 6px 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+}

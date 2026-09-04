@@ -1,0 +1,47 @@
+<main class="studio-shell">
+  <header class="topbar">
+    <div class="brand-lockup">
+      <div class="brand-mark"><span></span><span></span></div>
+      <div><strong>CREATION</strong><span>Studio / Image editor</span></div>
+    </div>
+
+    <div class="canvas-title" aria-label="Current canvas">
+      <span class="canvas-status-dot" aria-hidden="true"></span>
+      <strong>Untitled canvas</strong>
+      <span class="save-state">Autosaved locally</span>
+    </div>
+
+    <div class="top-actions">
+      <button mat-icon-button aria-label="Upload image" matTooltip="Upload image" (click)="fileInput.click()">
+        <mat-icon fontSet="material-symbols-outlined">upload</mat-icon>
+      </button>
+      <button mat-icon-button aria-label="Undo" matTooltip="Undo" (click)="onHistoryAction('undo')">
+        <mat-icon fontSet="material-symbols-outlined">undo</mat-icon>
+      </button>
+      <button mat-icon-button aria-label="Redo" matTooltip="Redo" (click)="onHistoryAction('redo')">
+        <mat-icon fontSet="material-symbols-outlined">redo</mat-icon>
+      </button>
+      <button mat-flat-button class="export-top" (click)="exportImage()">
+        <mat-icon fontSet="material-symbols-outlined">download</mat-icon>
+        <span>Export</span>
+      </button>
+    </div>
+  </header>
+
+  <input #fileInput type="file" accept="image/*" hidden (change)="onImageSelected($event)" />
+
+  <section class="board-shell">
+    <div class="canvas-stage" role="application" aria-label="Infinite canvas workspace">
+      <app-image-editor (ready)="imageReady = true" (statusChange)="onStatus($event)"></app-image-editor>
+    </div>
+
+    <div class="board-footer">
+      <div class="footer-status"><span class="status-dot"></span><span>{{ statusMessage }}</span></div>
+      <span>{{ imageReady ? 'Ready to edit' : 'Loading canvas' }}</span>
+    </div>
+
+    <div class="ai-composer" aria-label="AI image prompt">
+      <app-ai-generation-panel (imageGenerated)="onAiImage($event)"></app-ai-generation-panel>
+    </div>
+  </section>
+</main>
