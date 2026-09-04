@@ -110,6 +110,7 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
   private canvasPanCleanup?: () => void;
   private helpMenuCleanup?: () => void;
   private resizeMenuCleanup?: () => void;
+  private resizeInputCleanup?: () => void;
   private cropMenuCleanup?: () => void;
   private textMenuCleanup?: () => void;
   private canvasChangeCleanup?: () => void;
@@ -165,6 +166,7 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
     this.canvasPanCleanup?.();
     this.helpMenuCleanup?.();
     this.resizeMenuCleanup?.();
+    this.resizeInputCleanup?.();
     this.cropMenuCleanup?.();
     this.textMenuCleanup?.();
     this.canvasChangeCleanup?.();
@@ -264,6 +266,17 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
     resizeActions.reset = (standByMode = false) => {
       this.resetResize(standByMode);
     };
+
+    const resizeInputs = this.editorHost.nativeElement.querySelectorAll<HTMLInputElement>(
+      '.tie-width-range-value, .tie-height-range-value'
+    );
+    const stopResizeInputDeleteShortcut = (event: KeyboardEvent): void => {
+      // TUI's document-level delete shortcut must not remove the selected image
+      // while the user is clearing or editing a resize value.
+      if (event.key === 'Backspace' || event.key === 'Delete') event.stopPropagation();
+    };
+    resizeInputs.forEach((input) => input.addEventListener('keydown', stopResizeInputDeleteShortcut, true));
+    this.resizeInputCleanup = () => resizeInputs.forEach((input) => input.removeEventListener('keydown', stopResizeInputDeleteShortcut, true));
 
     const onResizeMenuClick = (event: MouseEvent): void => {
       this.leaveTextMode();
