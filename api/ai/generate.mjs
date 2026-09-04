@@ -8,23 +8,29 @@ import {
 
 const aiConfig = getAiConfig();
 
-export async function POST(request) {
-  const headers = corsHeaders();
+export default async function handler(request, response) {
+  setHeaders(response, corsHeaders());
+  if (request.method === 'OPTIONS') {
+    response.statusCode = 204;
+    response.end();
+    return;
+  }
+  if (request.method !== 'POST') {
+    sendJson(response, { error: 'Method not allowed.' }, 405);
+    return;
+  }
+
   try {
-    const body = await request.json();
+    const body = await readBody(request);
     const { buffer, contentType } = await generateImage(body, aiConfig);
-    return new Response(buffer, {
-      status: 200,
-      headers: { ...headers, 'Content-Type': contentType, 'Cache-Control': 'no-store' }
-    });
+    response.statusCode = 200;
+    response.setHeader('Content-Type', contentType);
+    response.setHeader('Cache-Control', 'no-store');
+    response.end(buffer);
   } catch (error) {
     const status = getErrorStatus(error);
-    return json({ code: getErrorCode(status, error), error: getSafeErrorMessage(error, status) }, status, headers);
+    sendJson(response, { code: getErrorCode(status, error), error: getSafeErrorMessage(error, status) }, status);
   }
-}
-
-export function OPTIONS() {
-  return new Response(null, { status: 204, headers: corsHeaders() });
 }
 
 function corsHeaders() {
@@ -36,9 +42,21 @@ function corsHeaders() {
   };
 }
 
-function json(payload, status, headers) {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: { ...headers, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }
-  });
+async function readBody(request) {
+  if (request.body && typeof request.body === 'object') return request.body;
+
+  const chunks = [];
+  for await (const chunk of request) chunks.push(Buffer.from(chunk));
+  return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+}
+
+function sendJson(response, payload, status) {
+  response.statusCode = status;
+  response.setHeader('Content-Type', 'application/json; charset=utf-8');
+  response.setHeader('Cache-Control', 'no-store');
+  response.end(JSON.stringify(payload));
+}
+
+function setHeaders(response, headers) {
+  Object.entries(headers).forEach(([name, value]) => response.setHeader(name, value));
 }

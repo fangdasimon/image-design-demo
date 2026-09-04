@@ -2,19 +2,25 @@ import { getAiConfig } from '../server/ai-generation.mjs';
 
 const aiConfig = getAiConfig();
 
-export function GET() {
-  const headers = corsHeaders();
-  return json({
+export default function handler(request, response) {
+  setHeaders(response, corsHeaders());
+  if (request.method === 'OPTIONS') {
+    response.statusCode = 204;
+    response.end();
+    return;
+  }
+  if (request.method !== 'GET') {
+    sendJson(response, { error: 'Method not allowed.' }, 405);
+    return;
+  }
+
+  sendJson(response, {
     ok: true,
     configured: Boolean(aiConfig.client),
     model: aiConfig.textModel,
     imageModel: aiConfig.imageModel,
     imageProvider: aiConfig.imageProvider
-  }, 200, headers);
-}
-
-export function OPTIONS() {
-  return new Response(null, { status: 204, headers: corsHeaders() });
+  }, 200);
 }
 
 function corsHeaders() {
@@ -26,9 +32,13 @@ function corsHeaders() {
   };
 }
 
-function json(payload, status, headers) {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: { ...headers, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }
-  });
+function sendJson(response, payload, status) {
+  response.statusCode = status;
+  response.setHeader('Content-Type', 'application/json; charset=utf-8');
+  response.setHeader('Cache-Control', 'no-store');
+  response.end(JSON.stringify(payload));
+}
+
+function setHeaders(response, headers) {
+  Object.entries(headers).forEach(([name, value]) => response.setHeader(name, value));
 }
