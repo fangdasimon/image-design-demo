@@ -12,6 +12,9 @@
 .brand-mark span:last-child { right: 4px; bottom: 4px; width: 7px; height: 7px; background: var(--muted); }
 .canvas-title { display: flex; align-items: center; justify-content: center; gap: 9px; min-width: 0; white-space: nowrap; font-size: 11px; }
 .canvas-title strong { font-weight: 120; }
+.canvas-title-button { min-width: 0; max-width: min(240px, 22vw); overflow: hidden; border: 0; background: transparent; padding: 3px 4px; color: var(--ink); font: inherit; text-align: left; text-overflow: ellipsis; cursor: text; }
+.canvas-title-button:hover { background: var(--primary-grey); }
+.canvas-title-input { width: min(240px, 22vw); min-width: 110px; border: 0; border-bottom: 1px solid var(--ink); outline: 0; background: transparent; padding: 3px 4px 2px; color: var(--ink); font: inherit; }
 .canvas-status-dot { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: var(--ink); }
 .save-state { padding-left: 10px; border-left: 1px solid var(--line); color: var(--muted); }
 .top-actions { display: flex; align-items: center; justify-content: flex-end; gap: 3px; min-width: 290px; }

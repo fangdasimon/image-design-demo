@@ -22,6 +22,13 @@ button, a { -webkit-tap-highlight-color: transparent; }
 button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .material-symbols-outlined { font-family: 'Material Symbols Outlined'; font-weight: 400; font-style: normal; font-size: 20px; line-height: 1; letter-spacing: normal; text-transform: none; display: inline-block; white-space: nowrap; word-wrap: normal; direction: ltr; -webkit-font-feature-settings: 'liga'; -webkit-font-smoothing: antialiased; }
 
+/* Crop mode owns the full board, so floating controls must not cover or intercept it. */
+.board-shell:has(.tui-image-editor-main.tui-image-editor-menu-crop) > .ai-composer,
+.board-shell:has(.tui-image-editor-main.tui-image-editor-menu-crop) > .board-footer {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
 .mat-mdc-button, .mat-mdc-unelevated-button, .mat-mdc-outlined-button, .mat-mdc-icon-button { letter-spacing: 0 !important; }
 .mat-mdc-form-field { --mdc-outlined-text-field-container-shape: 0px; --mdc-outlined-text-field-outline-color: var(--line-strong); --mdc-outlined-text-field-focus-outline-color: var(--ink); --mdc-outlined-text-field-label-text-color: var(--muted); --mdc-outlined-text-field-focus-label-text-color: var(--ink); }
 .mat-mdc-form-field .mat-mdc-form-field-subscript-wrapper { font-size: 10px; }
@@ -329,6 +336,37 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   line-height: 16px !important;
   white-space: normal !important;
 }
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-menu-filter .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li.creation-image-processing-hint,
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-menu-mask .tui-image-editor-submenu > .tui-image-editor-menu-mask > .tui-image-editor-submenu-item > li.creation-image-processing-hint {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  width: 100% !important;
+  min-height: 44px !important;
+  height: auto !important;
+  grid-column: 1 / -1 !important;
+  margin: 0 !important;
+  padding: 0 0 4px !important;
+  gap: 2px !important;
+  text-align: left !important;
+  pointer-events: none !important;
+}
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-menu-filter .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li.creation-image-processing-hint > strong,
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-menu-mask .tui-image-editor-submenu > .tui-image-editor-menu-mask > .tui-image-editor-submenu-item > li.creation-image-processing-hint > strong {
+  color: var(--ink) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  line-height: 16px !important;
+}
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-menu-filter .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li.creation-image-processing-hint > span,
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-menu-mask .tui-image-editor-submenu > .tui-image-editor-menu-mask > .tui-image-editor-submenu-item > li.creation-image-processing-hint > span {
+  color: var(--muted) !important;
+  font-size: 11px !important;
+  font-weight: 400 !important;
+  line-height: 16px !important;
+  white-space: normal !important;
+}
 /* Keep every active tool panel top-aligned and center controls within their rows. */
 .creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-menu-crop .tui-image-editor-submenu > .tui-image-editor-menu-crop,
 .creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-menu-flip .tui-image-editor-submenu > .tui-image-editor-menu-flip,
@@ -497,6 +535,240 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   padding: 0 !important;
   line-height: 20px !important;
 }
+/* Feature custom crop at the top, then balance the aspect-ratio presets in two columns. */
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-menu-crop > .tui-image-editor-submenu > .tui-image-editor-menu-crop > .tui-image-editor-submenu-item > .tie-crop-preset-button:not(.tui-image-editor-disabled) {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px !important;
+  align-items: stretch !important;
+}
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-menu-crop > .tui-image-editor-submenu > .tui-image-editor-menu-crop > .tui-image-editor-submenu-item > .tie-crop-preset-button > .tui-image-editor-button.preset {
+  display: flex !important;
+  flex: none !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  width: auto !important;
+  height: 60px !important;
+  min-height: 60px !important;
+  margin: 0 !important;
+  padding: 8px !important;
+  gap: 8px !important;
+  text-align: center !important;
+}
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-menu-crop > .tui-image-editor-submenu > .tui-image-editor-menu-crop > .tui-image-editor-submenu-item > .tie-crop-preset-button > .tui-image-editor-button.preset.preset-none {
+  grid-column: auto;
+}
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-menu-crop > .tui-image-editor-submenu > .tui-image-editor-menu-crop > .tui-image-editor-submenu-item > .tie-crop-preset-button > .tui-image-editor-button.preset > div {
+  display: flex !important;
+  flex: 0 0 28px !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  width: 28px !important;
+}
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-menu-crop > .tui-image-editor-submenu > .tui-image-editor-menu-crop > .tui-image-editor-submenu-item > .tie-crop-preset-button > .tui-image-editor-button.preset > label {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  margin: 0 !important;
+  text-align: center !important;
+}
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-menu-crop > .tui-image-editor-submenu > .tui-image-editor-menu-crop > .tui-image-editor-submenu-item > .tie-crop-button.action:not(.tui-image-editor-disabled) {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px !important;
+  align-items: stretch !important;
+}
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-menu-crop > .tui-image-editor-submenu > .tui-image-editor-menu-crop > .tui-image-editor-submenu-item > .tie-crop-button.action:not(.tui-image-editor-disabled) > .tui-image-editor-button {
+  display: flex !important;
+  flex: none !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: auto !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  margin: 0 !important;
+  padding: 0 8px !important;
+  gap: 8px !important;
+  text-align: center !important;
+}
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-menu-crop > .tui-image-editor-submenu > .tui-image-editor-menu-crop > .tui-image-editor-submenu-item > .tie-crop-button.action:not(.tui-image-editor-disabled) > .tui-image-editor-button > label {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  margin: 0 !important;
+  text-align: center !important;
+}
+/* Keep the remaining tool panels on the same two-column rhythm as Crop. */
+.creation-editor .tui-image-editor-container .tui-image-editor-main[class*='tui-image-editor-menu-']:not(.tui-image-editor-menu-crop):not(.tui-image-editor-menu-resize) .tui-image-editor-submenu > div[class*='tui-image-editor-menu-'] > .tui-image-editor-submenu-item > li:has(> .tui-image-editor-button):not(.tui-image-editor-disabled) {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px !important;
+  align-items: stretch !important;
+}
+.creation-editor .tui-image-editor-container .tui-image-editor-main[class*='tui-image-editor-menu-']:not(.tui-image-editor-menu-crop):not(.tui-image-editor-menu-resize) .tui-image-editor-submenu > div[class*='tui-image-editor-menu-'] > .tui-image-editor-submenu-item > li:has(> .tui-image-editor-button):not(.tui-image-editor-disabled) > .tui-image-editor-button {
+  display: flex !important;
+  flex: none !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  width: auto !important;
+  min-width: 0 !important;
+  height: 60px !important;
+  min-height: 60px !important;
+  margin: 0 !important;
+  padding: 8px !important;
+  gap: 8px !important;
+  text-align: left !important;
+}
+.creation-editor .tui-image-editor-container .tui-image-editor-main[class*='tui-image-editor-menu-']:not(.tui-image-editor-menu-crop):not(.tui-image-editor-menu-resize) .tui-image-editor-submenu > div[class*='tui-image-editor-menu-'] > .tui-image-editor-submenu-item > li:has(> .tui-image-editor-button) > .tui-image-editor-button:only-child {
+  grid-column: 1 / -1;
+}
+.creation-editor .tui-image-editor-container .tui-image-editor-main[class*='tui-image-editor-menu-']:not(.tui-image-editor-menu-crop):not(.tui-image-editor-menu-resize) .tui-image-editor-submenu > div[class*='tui-image-editor-menu-'] > .tui-image-editor-submenu-item > li:has(> .tui-image-editor-button) > .tui-image-editor-button > div:first-child:not(.color-picker-control):not(.color-picker-value) {
+  display: flex !important;
+  flex: 0 0 28px !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  width: 28px !important;
+}
+.creation-editor .tui-image-editor-container .tui-image-editor-main[class*='tui-image-editor-menu-']:not(.tui-image-editor-menu-crop):not(.tui-image-editor-menu-resize) .tui-image-editor-submenu > div[class*='tui-image-editor-menu-'] > .tui-image-editor-submenu-item > li:has(> .tui-image-editor-button) > .tui-image-editor-button > .color-picker-value {
+  flex: 0 0 32px !important;
+  width: 32px !important;
+}
+.creation-editor .tui-image-editor-container .tui-image-editor-main[class*='tui-image-editor-menu-']:not(.tui-image-editor-menu-crop):not(.tui-image-editor-menu-resize) .tui-image-editor-submenu > div[class*='tui-image-editor-menu-'] > .tui-image-editor-submenu-item > li:has(> .tui-image-editor-button) > .tui-image-editor-button > svg:first-child {
+  flex: 0 0 22px !important;
+  width: 22px !important;
+  height: 22px !important;
+}
+.creation-editor .tui-image-editor-container .tui-image-editor-main[class*='tui-image-editor-menu-']:not(.tui-image-editor-menu-crop):not(.tui-image-editor-menu-resize) .tui-image-editor-submenu > div[class*='tui-image-editor-menu-'] > .tui-image-editor-submenu-item > li:has(> .tui-image-editor-button) > .tui-image-editor-button > label {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  margin: 0 !important;
+  text-align: left !important;
+  white-space: nowrap;
+}
+/* Mask keeps its two actions together even though the editor renders them in separate rows. */
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-main.tui-image-editor-main.tui-image-editor-menu-mask > .tui-image-editor-submenu > .tui-image-editor-menu-mask > .tui-image-editor-submenu-item {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px !important;
+  align-items: stretch !important;
+}
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-main.tui-image-editor-main.tui-image-editor-menu-mask > .tui-image-editor-submenu > .tui-image-editor-menu-mask > .tui-image-editor-submenu-item > li:not(.tui-image-editor-partition):not(.tui-image-editor-disabled):has(> .tui-image-editor-button) {
+  display: flex !important;
+  flex: 0 0 auto !important;
+  align-items: center !important;
+  align-content: center !important;
+  flex-wrap: nowrap !important;
+  width: auto !important;
+  min-width: 0 !important;
+  height: 60px !important;
+  min-height: 60px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-main.tui-image-editor-main.tui-image-editor-menu-mask > .tui-image-editor-submenu > .tui-image-editor-menu-mask > .tui-image-editor-submenu-item > li:not(.tui-image-editor-partition):not(.tui-image-editor-disabled):has(> .tui-image-editor-button) > .tui-image-editor-button {
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+}
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-main.tui-image-editor-main.tui-image-editor-menu-mask > .tui-image-editor-submenu > .tui-image-editor-menu-mask > .tui-image-editor-submenu-item > li:not(.tui-image-editor-partition):not(.tui-image-editor-disabled):has(> .tui-image-editor-button) > .tui-image-editor-button > label {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  max-width: calc(100% - 36px) !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+  line-height: 16px !important;
+}
+/* Filter checkboxes use the same two-column cells while their sliders remain inside each cell. */
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li.tui-image-editor-submenu-align:has(> .tui-image-editor-checkbox-wrap.fixed-width) {
+  display: block !important;
+  width: 100% !important;
+  min-height: 0 !important;
+}
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li.tui-image-editor-submenu-align:has(> .tui-image-editor-checkbox-wrap.fixed-width) > .tui-image-editor-checkbox-wrap.fixed-width {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px !important;
+  width: 100% !important;
+  height: auto !important;
+  margin: 0 !important;
+}
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li.tui-image-editor-submenu-align:has(> .tui-image-editor-checkbox-wrap.fixed-width) > .tui-image-editor-checkbox-wrap.fixed-width > .checkbox {
+  width: auto !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+}
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li.tui-image-editor-submenu-align:has(> .tui-image-editor-checkbox-wrap.fixed-width) > .tui-image-editor-checkbox-wrap.fixed-width > .checkbox > label {
+  display: flex !important;
+  align-items: center !important;
+  width: 100% !important;
+  min-height: 40px !important;
+  white-space: nowrap;
+}
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li.tui-image-editor-submenu-align:has(> .tui-image-editor-checkbox-group) {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px !important;
+  align-items: start !important;
+}
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li.tui-image-editor-submenu-align:has(> .tui-image-editor-checkbox-group) > .tui-image-editor-checkbox-group {
+  display: grid !important;
+  grid-template-rows: auto auto;
+  width: auto !important;
+  min-width: 0 !important;
+  height: auto !important;
+  margin: 0 !important;
+}
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li.tui-image-editor-submenu-align:has(> .tui-image-editor-checkbox-group) > .tui-image-editor-checkbox-group > .checkbox,
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li.tui-image-editor-submenu-align:has(> .tui-image-editor-checkbox-group) > .tui-image-editor-checkbox-group > .tui-image-editor-checkbox-wrap,
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li.tui-image-editor-submenu-align:has(> .tui-image-editor-checkbox-group) > .tui-image-editor-checkbox-group .range-wrap.short {
+  width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+}
+/* Tint, Multiply, and Blend are paired cells with their swatch action above the checkbox. */
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li:not(.tui-image-editor-partition):not(.tui-image-editor-disabled):has(> .filter-color-item) {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px !important;
+  align-items: start !important;
+}
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li:not(.tui-image-editor-partition):not(.tui-image-editor-disabled):has(> .filter-color-item) > .filter-color-item {
+  display: grid !important;
+  grid-template-rows: 40px 28px;
+  row-gap: 4px !important;
+  width: auto !important;
+  min-width: 0 !important;
+  height: auto !important;
+  margin: 0 !important;
+}
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li:not(.tui-image-editor-partition):not(.tui-image-editor-disabled):has(> .filter-color-item) > .filter-color-item > .tui-image-editor-button {
+  display: flex !important;
+  flex: none !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  width: auto !important;
+  min-width: 0 !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  margin: 0 !important;
+  padding: 0 8px !important;
+  gap: 8px !important;
+}
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li:not(.tui-image-editor-partition):not(.tui-image-editor-disabled):has(> .filter-color-item) > .filter-color-item > .tui-image-editor-button > .color-picker-value {
+  flex: 0 0 32px !important;
+  width: 32px !important;
+}
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li:not(.tui-image-editor-partition):not(.tui-image-editor-disabled):has(> .filter-color-item) > .filter-color-item > .tui-image-editor-button > label {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  margin: 0 !important;
+  white-space: nowrap;
+}
+.creation-editor .tui-image-editor-container .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li:not(.tui-image-editor-partition):not(.tui-image-editor-disabled):has(> .filter-color-item) > .filter-color-item > .tui-image-editor-checkbox {
+  width: auto !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+}
 /* Keep toolbar tooltips above the open submenu. */
 .creation-editor .tui-image-editor-container .tui-image-editor-controls {
   position: relative !important;
@@ -580,6 +852,436 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .creation-editor .tui-image-editor-container .tui-image-editor-button.cancel.active {
   background-color: var(--ink) !important;
   color: var(--paper) !important;
+}
+.creation-editor .tui-image-editor-container .tui-image-editor-button.apply.active > label,
+.creation-editor .tui-image-editor-container .tui-image-editor-button.cancel.active > label {
+  color: var(--paper) !important;
+}
+.creation-editor .tui-image-editor-container .tui-image-editor-button.apply.active > svg > use.active,
+.creation-editor .tui-image-editor-container .tui-image-editor-button.cancel.active > svg > use.active {
+  fill: var(--paper) !important;
+  color: var(--paper) !important;
+  stroke: var(--paper) !important;
+}
+
+/* Keep the draw color control readable and keep its swatch with the label. */
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-draw .tui-image-editor-submenu > .tui-image-editor-menu-draw > .tui-image-editor-submenu-item > li:has(> .tie-draw-color) {
+  display: flex !important;
+  align-items: center !important;
+  flex-wrap: nowrap !important;
+  width: 100% !important;
+  min-height: 60px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-draw .tui-image-editor-submenu > .tui-image-editor-menu-draw > .tui-image-editor-submenu-item > li:has(> .tie-draw-color) > .tie-draw-color {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  width: 100% !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  margin: 0 !important;
+  padding: 0 12px !important;
+  gap: 12px !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-draw .tui-image-editor-submenu > .tui-image-editor-menu-draw > .tui-image-editor-submenu-item > li:has(> .tie-draw-color) > .tie-draw-color > .color-picker-value {
+  flex: 0 0 32px !important;
+  width: 32px !important;
+  height: 32px !important;
+  margin: 0 !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-draw .tui-image-editor-submenu > .tui-image-editor-menu-draw > .tui-image-editor-submenu-item > li:has(> .tie-draw-color) > .tie-draw-color > label {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  margin: 0 !important;
+  color: var(--ink) !important;
+  white-space: nowrap;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-draw .color-picker-control {
+  top: calc(100% + 12px) !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: 0 !important;
+  width: 236px !important;
+  padding: 16px !important;
+  box-sizing: border-box !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-draw .color-picker-control .triangle {
+  top: -8px !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: 104px !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-draw .color-picker-control .tui-colorpicker-palette-container > ul.tui-colorpicker-clearfix {
+  display: grid !important;
+  grid-template-columns: repeat(8, 20px) !important;
+  gap: 6px !important;
+  width: 100% !important;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-draw .color-picker-control .tui-colorpicker-palette-container > ul.tui-colorpicker-clearfix > li {
+  display: grid !important;
+  place-items: center !important;
+  width: 20px !important;
+  height: 20px !important;
+  min-height: 20px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-draw .color-picker-control .tui-colorpicker-palette-container > ul.tui-colorpicker-clearfix > li > .tui-colorpicker-palette-button {
+  display: block !important;
+  width: 20px !important;
+  min-width: 20px !important;
+  height: 20px !important;
+  min-height: 20px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  font-size: 0 !important;
+  cursor: pointer;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-draw .color-picker-control .tui-colorpicker-palette-container > div.tui-colorpicker-clearfix {
+  display: grid !important;
+  grid-template-columns: 24px minmax(0, 1fr) !important;
+  align-items: center !important;
+  column-gap: 8px !important;
+  width: 100% !important;
+  height: 34px !important;
+  margin: 10px 0 0 !important;
+  padding: 5px 8px !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-draw .color-picker-control .tui-colorpicker-palette-container > div.tui-colorpicker-clearfix > .tui-colorpicker-palette-hex {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  width: 100% !important;
+  height: 22px !important;
+  margin: 0 !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-draw .color-picker-control .tui-colorpicker-palette-container > div.tui-colorpicker-clearfix > .tui-colorpicker-palette-preview {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  float: none !important;
+  width: 24px !important;
+  height: 24px !important;
+  margin: 0 !important;
+  color: transparent !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Share the readable color-control treatment across shape, icon, text, and filter menus. */
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main[class*='tui-image-editor-menu-'] .tui-image-editor-submenu > div[class*='tui-image-editor-menu-'] > .tui-image-editor-submenu-item > li:has(> .tui-image-editor-button > .color-picker-value) {
+  display: flex !important;
+  align-items: center !important;
+  flex-wrap: nowrap !important;
+  min-height: 60px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main[class*='tui-image-editor-menu-'] .tui-image-editor-submenu > div[class*='tui-image-editor-menu-'] > .tui-image-editor-submenu-item > li:has(> .tui-image-editor-button > .color-picker-value) > .tui-image-editor-button {
+  display: flex !important;
+  flex: 0 0 auto !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  width: auto !important;
+  min-width: 0 !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  margin: 0 !important;
+  padding: 0 6px !important;
+  gap: 10px !important;
+  text-align: left !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main[class*='tui-image-editor-menu-'] .tui-image-editor-submenu > div[class*='tui-image-editor-menu-'] > .tui-image-editor-submenu-item > li:has(> .tui-image-editor-button > .color-picker-value) > .tui-image-editor-button > .color-picker-value {
+  flex: 0 0 32px !important;
+  width: 32px !important;
+  height: 32px !important;
+  margin: 0 !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main[class*='tui-image-editor-menu-'] .tui-image-editor-submenu > div[class*='tui-image-editor-menu-'] > .tui-image-editor-submenu-item > li:has(> .tui-image-editor-button > .color-picker-value) > .tui-image-editor-button > label {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  margin: 0 !important;
+  color: var(--ink) !important;
+  white-space: nowrap;
+}
+
+/* Keep every palette readable: larger swatches, a separate preview, and a non-overlapping hex field. */
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main[class*='tui-image-editor-menu-'] .color-picker-control {
+  top: auto !important;
+  right: auto !important;
+  bottom: calc(100% + 12px) !important;
+  left: 0 !important;
+  width: 236px !important;
+  height: auto !important;
+  padding: 16px !important;
+  box-sizing: border-box !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main[class*='tui-image-editor-menu-'] .color-picker-control .triangle {
+  top: auto !important;
+  right: auto !important;
+  bottom: -8px !important;
+  left: 104px !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main[class*='tui-image-editor-menu-'] .color-picker-control .tui-colorpicker-palette-container > ul.tui-colorpicker-clearfix {
+  display: grid !important;
+  grid-template-columns: repeat(8, 20px) !important;
+  gap: 6px !important;
+  width: 100% !important;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main[class*='tui-image-editor-menu-'] .color-picker-control .tui-colorpicker-palette-container > ul.tui-colorpicker-clearfix > li {
+  display: grid !important;
+  place-items: center !important;
+  width: 20px !important;
+  height: 20px !important;
+  min-height: 20px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main[class*='tui-image-editor-menu-'] .color-picker-control .tui-colorpicker-palette-container > ul.tui-colorpicker-clearfix > li > .tui-colorpicker-palette-button {
+  display: block !important;
+  width: 20px !important;
+  min-width: 20px !important;
+  height: 20px !important;
+  min-height: 20px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  font-size: 0 !important;
+  cursor: pointer;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main[class*='tui-image-editor-menu-'] .color-picker-control .tui-colorpicker-palette-container > div.tui-colorpicker-clearfix {
+  display: grid !important;
+  grid-template-columns: 24px minmax(0, 1fr) !important;
+  align-items: center !important;
+  column-gap: 8px !important;
+  width: 100% !important;
+  height: 34px !important;
+  margin: 10px 0 0 !important;
+  padding: 5px 8px !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main[class*='tui-image-editor-menu-'] .color-picker-control .tui-colorpicker-palette-container > div.tui-colorpicker-clearfix > .tui-colorpicker-palette-hex {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  width: 100% !important;
+  height: 22px !important;
+  margin: 0 !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main[class*='tui-image-editor-menu-'] .color-picker-control .tui-colorpicker-palette-container > div.tui-colorpicker-clearfix > .tui-colorpicker-palette-preview {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  float: none !important;
+  width: 24px !important;
+  height: 24px !important;
+  margin: 0 !important;
+  color: transparent !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Match the editor's more specific legacy row rules so these values cannot reintroduce spacing. */
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main[class*='tui-image-editor-menu-']:not(.tui-image-editor-menu-crop):not(.tui-image-editor-menu-resize) .tui-image-editor-submenu > div[class*='tui-image-editor-menu-'] > .tui-image-editor-submenu-item > li:has(> .tui-image-editor-button > .color-picker-value):not(.tui-image-editor-disabled) > .tui-image-editor-button {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  width: auto !important;
+  min-width: 0 !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  margin: 0 !important;
+  padding: 0 6px !important;
+  gap: 10px !important;
+  text-align: left !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main[class*='tui-image-editor-menu-']:not(.tui-image-editor-menu-crop):not(.tui-image-editor-menu-resize) .tui-image-editor-submenu > div[class*='tui-image-editor-menu-'] > .tui-image-editor-submenu-item > li:has(> .tui-image-editor-button > .color-picker-value):not(.tui-image-editor-disabled) > .tui-image-editor-button > .color-picker-value {
+  flex: 0 0 32px !important;
+  width: 32px !important;
+  height: 32px !important;
+  margin: 0 !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main[class*='tui-image-editor-menu-']:not(.tui-image-editor-menu-crop):not(.tui-image-editor-menu-resize) .tui-image-editor-submenu > div[class*='tui-image-editor-menu-'] > .tui-image-editor-submenu-item > li:has(> .tui-image-editor-button > .color-picker-value):not(.tui-image-editor-disabled) > .tui-image-editor-button > label {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  margin: 0 !important;
+  color: var(--ink) !important;
+  white-space: nowrap;
+}
+
+/* Filter color cells have one extra wrapper, so give their buttons the same spacing explicitly. */
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li:has(> .filter-color-item):not(.tui-image-editor-disabled) > .filter-color-item > .tui-image-editor-button {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  width: auto !important;
+  min-width: 0 !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  margin: 0 !important;
+  padding: 0 6px !important;
+  gap: 10px !important;
+  text-align: left !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li:has(> .filter-color-item):not(.tui-image-editor-disabled) > .filter-color-item > .tui-image-editor-button > .color-picker-value {
+  flex: 0 0 32px !important;
+  width: 32px !important;
+  height: 32px !important;
+  margin: 0 !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li:has(> .filter-color-item):not(.tui-image-editor-disabled) > .filter-color-item > .tui-image-editor-button > label {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  margin: 0 !important;
+  color: var(--ink) !important;
+  white-space: nowrap;
+}
+
+/* The palette is wider than the compact submenu, so leave enough room and anchor right-column popovers inward. */
+.creation-editor .tui-image-editor-container.left .tui-image-editor-submenu,
+.creation-editor .tui-image-editor-container.left .tui-image-editor-submenu > div[class*='tui-image-editor-menu-'] {
+  width: 264px !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-shape .tie-color-stroke .color-picker-control,
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-filter .tie-filter-multiply-color .color-picker-control {
+  left: calc(-100% - 8px) !important;
+}
+
+/* Rebuild the filter panel's lower controls as stable two-column property cells. */
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li:has(> .tui-image-editor-checkbox-group) {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+  align-items: start !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 80px !important;
+  margin: 0 !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li:has(> .tui-image-editor-checkbox-group) > .tui-image-editor-checkbox-group {
+  display: grid !important;
+  grid-template-rows: 28px 52px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 80px !important;
+  margin: 0 !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li:has(> .tui-image-editor-checkbox-group) > .tui-image-editor-checkbox-group > .tui-image-editor-checkbox,
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li:has(> .tui-image-editor-checkbox-group) > .tui-image-editor-checkbox-group > .tui-image-editor-checkbox-wrap {
+  display: flex !important;
+  align-items: center !important;
+  width: 100% !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  margin: 0 !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li:has(> .tui-image-editor-checkbox-group) > .tui-image-editor-checkbox-group > .tui-image-editor-checkbox-wrap > .tui-image-editor-checkbox,
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li:has(> .tui-image-editor-checkbox-group) > .tui-image-editor-checkbox-group > .tui-image-editor-checkbox {
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 28px !important;
+  margin: 0 !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li:has(> .tui-image-editor-checkbox-group) .tui-image-editor-range-wrap.short {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: 20px 32px !important;
+  align-items: start !important;
+  width: 100% !important;
+  height: 52px !important;
+  min-height: 52px !important;
+  margin: 0 !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li:has(> .tui-image-editor-checkbox-group) .tui-image-editor-range-wrap.short > label {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  width: 100% !important;
+  height: 20px !important;
+  margin: 0 !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li:has(> .tui-image-editor-checkbox-group) .tui-image-editor-range-wrap.short > .tui-image-editor-range {
+  grid-column: 1 !important;
+  grid-row: 2 !important;
+  width: 100% !important;
+  height: 17px !important;
+  margin: 0 !important;
+}
+
+/* Keep each color effect's enable checkbox beside its swatch and label. */
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li:not(.tui-image-editor-partition):not(.tui-image-editor-disabled):has(> .filter-color-item) {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  grid-template-rows: repeat(2, 40px) !important;
+  grid-auto-rows: 40px !important;
+  gap: 8px !important;
+  align-items: start !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 40px !important;
+  margin: 0 !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li:not(.tui-image-editor-partition):not(.tui-image-editor-disabled):has(> .filter-color-item) > .filter-color-item {
+  display: flex !important;
+  flex: 0 0 auto !important;
+  align-items: center !important;
+  gap: 6px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 40px !important;
+  margin: 0 !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li:not(.tui-image-editor-partition):not(.tui-image-editor-disabled):has(> .filter-color-item) > .filter-color-item > .tui-image-editor-checkbox {
+  display: flex !important;
+  order: 0 !important;
+  flex: 0 0 18px !important;
+  align-items: center !important;
+  width: 18px !important;
+  height: 28px !important;
+  margin: 0 !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li:not(.tui-image-editor-partition):not(.tui-image-editor-disabled):has(> .filter-color-item) > .filter-color-item > .tui-image-editor-checkbox > label {
+  display: flex !important;
+  align-items: center !important;
+  width: 18px !important;
+  height: 28px !important;
+  margin: 0 !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li:not(.tui-image-editor-partition):not(.tui-image-editor-disabled):has(> .filter-color-item) > .filter-color-item > .tui-image-editor-button {
+  display: flex !important;
+  order: 1 !important;
+  flex: 1 1 auto !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  width: auto !important;
+  min-width: 0 !important;
+  height: 40px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  gap: 8px !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li:not(.tui-image-editor-partition):not(.tui-image-editor-disabled):has(> .filter-color-item) > .filter-color-item > .tui-image-editor-button > .color-picker-value {
+  flex: 0 0 32px !important;
+  width: 32px !important;
+  height: 32px !important;
+  margin: 0 !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-filter > .tui-image-editor-submenu > .tui-image-editor-menu-filter > .tui-image-editor-submenu-item > li:not(.tui-image-editor-partition):not(.tui-image-editor-disabled):has(> .filter-color-item) > .filter-color-item > .tui-image-editor-button > label {
+  flex: 0 1 auto !important;
+  width: auto !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  white-space: nowrap;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-filter .filter-color-item > .tui-image-editor-button .color-picker-control {
+  left: -24px !important;
+}
+.creation-editor .tui-image-editor-container.left .tui-image-editor-main.tui-image-editor-menu-filter .filter-color-item:nth-child(2) > .tui-image-editor-button .color-picker-control {
+  right: 0 !important;
+  left: auto !important;
 }
 
 @media (max-width: 767px) {

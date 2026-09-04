@@ -9,9 +9,17 @@ interface PersistedAiState {
   favorites: string[];
 }
 
+export interface PersistedDocument {
+  title: string;
+  canvasJson: string | null;
+}
+
+export type DocumentSaveResult = 'document' | 'title' | 'unavailable';
+
 @Injectable({ providedIn: 'root' })
 export class StorageService {
   private readonly storageKey = 'creation-studio-ai-state-v1';
+  private readonly documentStorageKey = 'creation-studio-document-v1';
 
   read(): Partial<AiState> {
     if (typeof localStorage === 'undefined') {
@@ -59,6 +67,47 @@ export class StorageService {
       } catch {
         // Storage is optional and must never block the editor.
       }
+    }
+  }
+
+  readDocument(): Partial<PersistedDocument> {
+    if (typeof localStorage === 'undefined') {
+      return {};
+    }
+
+    try {
+      const raw = localStorage.getItem(this.documentStorageKey);
+      if (!raw) {
+        return {};
+      }
+
+      const parsed = JSON.parse(raw) as Partial<PersistedDocument>;
+      return {
+        title: typeof parsed.title === 'string' ? parsed.title : undefined,
+        canvasJson: typeof parsed.canvasJson === 'string' ? parsed.canvasJson : null
+      };
+    } catch {
+      return {};
+    }
+  }
+
+  writeDocument(document: PersistedDocument): DocumentSaveResult {
+    if (typeof localStorage === 'undefined') {
+      return 'unavailable';
+    }
+
+    try {
+      localStorage.setItem(this.documentStorageKey, JSON.stringify(document));
+      return 'document';
+    } catch {
+      // Keep the rename usable even when a generated image fills localStorage.
+      try {
+        localStorage.setItem(this.documentStorageKey, JSON.stringify({ title: document.title, canvasJson: null }));
+        return 'title';
+      } catch {
+        // Local persistence is optional and must never block the editor.
+      }
+      return 'unavailable';
     }
   }
 }

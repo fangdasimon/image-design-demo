@@ -1,22 +1,47 @@
 import { createServer } from 'node:http';
-import { readFileSync, existsSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { readFileSync, existsSync, statSync } from 'node:fs';
+import { dirname, extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { InferenceClient } from '@huggingface/inference';
+import {
+  generateImage,
+  getAiConfig,
+  getErrorCode,
+  getErrorStatus,
+  getSafeErrorMessage
+} from './ai-generation.mjs';
 
 const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const envPath = resolve(rootDir, 'server/.env');
 loadDotEnv(envPath);
 
 const port = Number(process.env.PORT || 4300);
-const model = process.env.HF_MODEL || 'stabilityai/stable-diffusion-xl-base-1.0';
-const configuredToken = (process.env.HF_TOKEN || '').trim();
-const token = configuredToken && !configuredToken.includes('your_rotated_token_here') ? configuredToken : '';
-const client = token ? new InferenceClient(token) : null;
-const maxBodyBytes = 32 * 1024;
+const host = process.env.HOST || '127.0.0.1';
+const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:4200')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+const aiConfig = getAiConfig();
+const maxBodyBytes = 12 * 1024 * 1024;
+const staticRoot = resolve(rootDir, 'dist/creation-image-editor/browser');
+const MIME_TYPES = {
+  '.css': 'text/css; charset=utf-8',
+  '.gif': 'image/gif',
+  '.html': 'text/html; charset=utf-8',
+  '.ico': 'image/x-icon',
+  '.jpeg': 'image/jpeg',
+  '.jpg': 'image/jpeg',
+  '.js': 'text/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.map': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.webp': 'image/webp',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2'
+};
 
 const server = createServer(async (request, response) => {
-  setCorsHeaders(response);
+  setCorsHeaders(response, request);
 
   if (request.method === 'OPTIONS') {
     response.writeHead(204);
@@ -24,8 +49,19 @@ const server = createServer(async (request, response) => {
     return;
   }
 
+  if (request.method === 'GET' && !request.url?.startsWith('/api')) {
+    serveStatic(request, response);
+    return;
+  }
+
   if (request.method === 'GET' && request.url === '/api/health') {
-    sendJson(response, 200, { ok: true, configured: Boolean(client), model });
+    sendJson(response, 200, {
+      ok: true,
+      configured: Boolean(aiConfig.client),
+      model: aiConfig.textModel,
+      imageModel: aiConfig.imageModel,
+      imageProvider: aiConfig.imageProvider
+    });
     return;
   }
 
@@ -34,7 +70,7 @@ const server = createServer(async (request, response) => {
     return;
   }
 
-  if (!client) {
+  if (!aiConfig.client) {
     sendJson(response, 401, {
       code: 'missing_token',
       error: 'The AI proxy is running, but HF_TOKEN is not configured in server/.env.'
@@ -44,27 +80,7 @@ const server = createServer(async (request, response) => {
 
   try {
     const body = await readJson(request);
-    const prompt = typeof body.inputs === 'string' ? body.inputs.trim() : '';
-    const parameters = body.parameters && typeof body.parameters === 'object' ? body.parameters : {};
-
-    if (!prompt || prompt.length > 240) {
-      sendJson(response, 400, { code: 'invalid_prompt', error: 'Prompt must contain 1 to 240 characters.' });
-      return;
-    }
-
-    const guidanceScale = clampNumber(parameters.guidance_scale, 1, 20, 7.5);
-    const steps = clampNumber(parameters.num_inference_steps, 1, 50, 30);
-    const image = await client.textToImage({
-      provider: 'auto',
-      model,
-      inputs: prompt,
-      parameters: {
-        guidance_scale: guidanceScale,
-        num_inference_steps: steps
-      }
-    });
-    const buffer = Buffer.from(await image.arrayBuffer());
-    const contentType = image.type || 'image/png';
+    const { buffer, contentType } = await generateImage(body, aiConfig);
 
     response.writeHead(200, {
       'Content-Type': contentType,
@@ -74,14 +90,47 @@ const server = createServer(async (request, response) => {
     response.end(buffer);
   } catch (error) {
     const status = getErrorStatus(error);
-    sendJson(response, status, { code: getErrorCode(status), error: getSafeErrorMessage(error, status) });
+    sendJson(response, status, { code: getErrorCode(status, error), error: getSafeErrorMessage(error, status) });
   }
 });
 
-server.listen(port, '127.0.0.1', () => {
-  console.log(`Creation AI proxy listening on http://127.0.0.1:${port}`);
-  console.log(`Hugging Face token: ${client ? 'configured' : 'missing (the UI will show an actionable error)'}`);
+server.listen(port, host, () => {
+  console.log(`Creation server listening on http://${host}:${port}`);
+  console.log(`Hugging Face token: ${aiConfig.client ? 'configured' : 'missing (the UI will show an actionable error)'}`);
 });
+
+function serveStatic(request, response) {
+  if (!existsSync(staticRoot)) {
+    sendJson(response, 404, { error: 'Production assets are not built. Run npm run build first.' });
+    return;
+  }
+
+  let pathname = '/';
+  try {
+    pathname = decodeURIComponent(new URL(request.url || '/', `http://${host}:${port}`).pathname);
+  } catch {
+    sendJson(response, 400, { error: 'Invalid URL.' });
+    return;
+  }
+
+  const candidate = resolve(staticRoot, `.${pathname}`);
+  const isInsideStaticRoot = candidate === staticRoot || candidate.startsWith(`${staticRoot}${sep}`);
+  const isFile = isInsideStaticRoot && existsSync(candidate) && statSync(candidate).isFile();
+  const filePath = isFile ? candidate : resolve(staticRoot, 'index.html');
+  if (!existsSync(filePath)) {
+    sendJson(response, 404, { error: 'Production entrypoint is missing.' });
+    return;
+  }
+
+  const body = readFileSync(filePath);
+  const extension = extname(filePath).toLowerCase();
+  response.writeHead(200, {
+    'Content-Type': MIME_TYPES[extension] || 'application/octet-stream',
+    'Content-Length': body.length,
+    'Cache-Control': filePath.endsWith('index.html') ? 'no-store' : 'public, max-age=31536000, immutable'
+  });
+  response.end(body);
+}
 
 function loadDotEnv(path) {
   if (!existsSync(path)) return;
@@ -94,11 +143,6 @@ function loadDotEnv(path) {
     const value = trimmed.slice(separator + 1).trim().replace(/^['"]|['"]$/g, '');
     if (!process.env[key]) process.env[key] = value;
   }
-}
-
-function clampNumber(value, min, max, fallback) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
 }
 
 function readJson(request) {
@@ -126,8 +170,16 @@ function readJson(request) {
   });
 }
 
-function setCorsHeaders(response) {
-  response.setHeader('Access-Control-Allow-Origin', 'http://localhost:4200');
+function setCorsHeaders(response, request) {
+  const requestOrigin = request.headers.origin;
+  const allowAllOrigins = corsOrigins.includes('*');
+  const allowedOrigin = allowAllOrigins
+    ? '*'
+    : requestOrigin && corsOrigins.includes(requestOrigin)
+      ? requestOrigin
+      : null;
+  if (allowedOrigin) response.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+  if (requestOrigin) response.setHeader('Vary', 'Origin');
   response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   response.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
 }
@@ -136,24 +188,4 @@ function sendJson(response, status, payload) {
   const body = JSON.stringify(payload);
   response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(body), 'Cache-Control': 'no-store' });
   response.end(body);
-}
-
-function getErrorStatus(error) {
-  const status = Number(error?.status ?? error?.statusCode);
-  if ([400, 401, 403, 408, 413, 429].includes(status) || status >= 500) return status;
-  return 502;
-}
-
-function getErrorCode(status) {
-  if (status === 401 || status === 403) return 'authentication';
-  if (status === 429) return 'rate_limit';
-  if (status >= 500) return 'provider_unavailable';
-  return 'provider_error';
-}
-
-function getSafeErrorMessage(error, status) {
-  if (status === 401 || status === 403) return 'The Hugging Face token was rejected or lacks Inference Providers permission.';
-  if (status === 429) return 'The model quota is busy. Wait a moment and try again.';
-  if (status >= 500) return 'The selected Hugging Face provider is temporarily unavailable.';
-  return error instanceof Error ? error.message : 'The AI provider returned an unknown error.';
 }

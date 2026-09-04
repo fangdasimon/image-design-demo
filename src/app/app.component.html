@@ -5,10 +5,16 @@
       <div><strong>CREATION</strong><span>Studio / Image editor</span></div>
     </div>
 
-    <div class="canvas-title" aria-label="Current canvas">
+    <div class="canvas-title" aria-label="Current canvas" aria-live="polite">
       <span class="canvas-status-dot" aria-hidden="true"></span>
-      <strong>Untitled canvas</strong>
-      <span class="save-state">Autosaved locally</span>
+      @if (isEditingTitle) {
+        <input #titleInput class="canvas-title-input" type="text" maxlength="80" [value]="canvasTitle" aria-label="Canvas title" (input)="onTitleInput($event)" (blur)="finishTitleEdit()" (keydown.enter)="finishTitleEdit()" (keydown.escape)="cancelTitleEdit()" />
+      } @else {
+        <button type="button" class="canvas-title-button" aria-label="Rename canvas" matTooltip="Rename canvas" (click)="beginTitleEdit()">
+          <strong>{{ canvasTitle }}</strong>
+        </button>
+      }
+      <span class="save-state">{{ saveStateLabel }}</span>
     </div>
 
     <div class="top-actions">
@@ -32,7 +38,7 @@
 
   <section class="board-shell">
     <div class="canvas-stage" role="application" aria-label="Infinite canvas workspace">
-      <app-image-editor (ready)="imageReady = true" (statusChange)="onStatus($event)"></app-image-editor>
+      <app-image-editor (ready)="onEditorReady()" (statusChange)="onStatus($event)" (selectedImageChange)="onSelectedImageChange($event)" (documentChange)="onDocumentChange($event)"></app-image-editor>
     </div>
 
     <div class="board-footer">
@@ -41,7 +47,7 @@
     </div>
 
     <div class="ai-composer" aria-label="AI image prompt">
-      <app-ai-generation-panel (imageGenerated)="onAiImage($event)"></app-ai-generation-panel>
+      <app-ai-generation-panel [sourceImage]="sourceImage" (imageGenerated)="onAiImage($event)"></app-ai-generation-panel>
     </div>
   </section>
 </main>

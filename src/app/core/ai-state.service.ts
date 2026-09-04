@@ -43,6 +43,10 @@ export class AiStateService {
     this.patch({ selectedModel });
   }
 
+  setSourceImage(sourceImage: string | null): void {
+    this.patch({ sourceImage });
+  }
+
   setParameter(key: keyof AiState['modelParameters'], value: number): void {
     this.patch({ modelParameters: { ...this.snapshot.modelParameters, [key]: value } });
   }
@@ -50,8 +54,15 @@ export class AiStateService {
   generate(): void {
     const state = this.snapshot;
     const prompt = state.prompt.trim();
-    if (state.isLoading || !prompt) {
+    if (state.isLoading) {
+      return;
+    }
+    if (!prompt) {
       this.patch({ error: { title: 'Prompt required', message: 'Describe the image you want to create first.', retryable: false } });
+      return;
+    }
+    if (prompt.length > 240) {
+      this.patch({ error: { title: 'Prompt too long', message: 'Keep your prompt within 240 characters.', retryable: false } });
       return;
     }
 
@@ -61,7 +72,7 @@ export class AiStateService {
       .pipe(
         switchMap(() => {
           this.patch({ progressStage: 'generating' });
-          return this.aiImageService.generate(prompt, state.modelParameters);
+          return this.aiImageService.generate(prompt, state.modelParameters, state.sourceImage);
         }),
         switchMap((result) => {
           this.patch({ progressStage: 'processing' });
@@ -80,7 +91,7 @@ export class AiStateService {
             source: result.source
           };
           const history = [image, ...this.snapshot.history.filter((item) => item.id !== image.id)].slice(0, 8);
-          this.patch({ generatedImages: [image, ...this.snapshot.generatedImages].slice(0, 6), history, isLoading: false, progressStage: 'complete', error: null });
+          this.patch({ prompt: '', generatedImages: [image, ...this.snapshot.generatedImages].slice(0, 6), history, isLoading: false, progressStage: 'complete', error: null });
           this.persist();
         },
         error: (error) => {

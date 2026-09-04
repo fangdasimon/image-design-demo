@@ -16,13 +16,13 @@ export class AiImageService {
     return environment.aiMode === 'demo';
   }
 
-  generate(prompt: string, parameters: { guidanceScale: number; steps: number }): Observable<{ dataUrl: string; source: 'api' | 'demo' }> {
+  generate(prompt: string, parameters: { guidanceScale: number; steps: number }, sourceImage: string | null = null): Observable<{ dataUrl: string; source: 'api' | 'demo' }> {
     if (this.isDemoMode) {
       return of({ dataUrl: createDemoGeneratedImage(prompt), source: 'demo' as const }).pipe(delay(950));
     }
 
     const body = {
-      inputs: prompt,
+      ...(sourceImage ? { prompt, source_image: sourceImage } : { inputs: prompt }),
       parameters: {
         guidance_scale: parameters.guidanceScale,
         num_inference_steps: parameters.steps
@@ -96,7 +96,10 @@ export class AiImageService {
     const status = typeof httpError?.status === 'number' ? httpError.status : 0;
 
     if (status === 401 || status === 403) {
-      return { title: 'Authentication needed', message: 'Configure a valid Hugging Face token in server/.env before generating.', retryable: false };
+      return { title: 'Authentication needed', message: 'Configure a valid Hugging Face token in server/.env or the deployment environment before generating.', retryable: false };
+    }
+    if (status === 402) {
+      return { title: 'Usage quota exhausted', message: 'Hugging Face Inference Providers monthly credits are exhausted. Add credits or use another provider.', retryable: false };
     }
     if (status === 429) {
       return { title: 'Rate limit reached', message: 'The model quota is busy. Wait a moment and try again.', retryable: true };

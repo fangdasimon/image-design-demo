@@ -1,19 +1,5 @@
-const DEMO_ART = `
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900">
-  <rect width="1200" height="900" fill="#e9e5df"/>
-  <rect x="72" y="72" width="1056" height="756" fill="#fffdf9" stroke="#111111" stroke-width="3"/>
-  <circle cx="866" cy="314" r="218" fill="#f2b24d"/>
-  <circle cx="866" cy="314" r="132" fill="#3346b8"/>
-  <circle cx="866" cy="314" r="54" fill="#f5dfb0"/>
-  <rect x="206" y="210" width="360" height="360" fill="#1d7d70"/>
-  <rect x="250" y="254" width="272" height="272" fill="#f2d9cf"/>
-  <path d="M206 650H994" stroke="#111111" stroke-width="4"/>
-  <path d="M206 650L360 566L490 650" fill="none" stroke="#df6658" stroke-width="14"/>
-  <text x="206" y="706" font-family="Arial, sans-serif" font-size="30" letter-spacing="5" fill="#111111">CREATION / STUDY 01</text>
-  <text x="206" y="758" font-family="Arial, sans-serif" font-size="18" letter-spacing="2" fill="#88847d">A QUIET IMAGE WORKBENCH</text>
-</svg>`;
-
-export const DEMO_ART_DATA_URL = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(DEMO_ART)}`;
+// Keep the supplied editorial portrait as the initial canvas image and reset target.
+export const DEMO_ART_DATA_URL = '/assets/demo-image.png';
 
 export function createDemoGeneratedImage(prompt: string): string {
   const safePrompt = prompt.slice(0, 42).replace(/[<&>]/g, '');

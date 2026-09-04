@@ -1,5 +1,5 @@
 import { AsyncPipe } from '@angular/common';
-import { Component, EventEmitter, OnDestroy, Output } from '@angular/core';
+import { Component, EventEmitter, Input, OnDestroy, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
@@ -15,10 +15,12 @@ import { AiStateService } from '../../core/ai-state.service';
   imports: [AsyncPipe, FormsModule, MatButtonModule, MatIconModule, MatProgressBarModule, MatTooltipModule],
   template: `
     @if (state$ | async; as state) {
-      <form class="composer-form" (submit)="submitPrompt($event)">
-        <mat-icon class="composer-icon" fontSet="material-symbols-outlined" aria-hidden="true">auto_awesome</mat-icon>
-        <label class="sr-only" for="image-prompt">Image prompt</label>
-        <input id="image-prompt" class="prompt-control" type="text" name="prompt" maxlength="240" autocomplete="off" [ngModel]="state.prompt" (ngModelChange)="stateService.setPrompt($event)" placeholder="Describe an image to create" />
+      <form class="composer-form" [class.image-to-image]="!!state.sourceImage" [attr.aria-label]="state.sourceImage ? 'Image-to-image prompt' : 'Text-to-image prompt'" [attr.aria-busy]="state.isLoading" (submit)="submitPrompt($event)">
+        <mat-icon class="composer-icon" fontSet="material-symbols-outlined" aria-hidden="true">{{ state.sourceImage ? 'image' : 'auto_awesome' }}</mat-icon>
+        <div class="prompt-field">
+          <label class="sr-only" for="image-prompt">Image prompt</label>
+          <input id="image-prompt" class="prompt-control" type="text" name="prompt" maxlength="240" autocomplete="off" [ngModel]="state.prompt" (ngModelChange)="stateService.setPrompt($event)" [placeholder]="state.sourceImage ? 'Describe how to transform the selected image' : 'Describe an image to create'" />
+        </div>
         <span class="prompt-count">{{ state.prompt.length }}/240</span>
         <button mat-flat-button class="generate-button" type="submit" [disabled]="state.isLoading || !state.prompt.trim()" [attr.aria-label]="state.isLoading ? 'Generating image' : 'Generate image'">
           <mat-icon fontSet="material-symbols-outlined" [class.is-loading]="state.isLoading">{{ state.isLoading ? 'progress_activity' : 'auto_awesome' }}</mat-icon>
@@ -38,7 +40,7 @@ import { AiStateService } from '../../core/ai-state.service';
           <mat-icon fontSet="material-symbols-outlined">warning</mat-icon>
           <span><strong>{{ error.title }}</strong> {{ error.message }}</span>
           @if (error.retryable) {
-            <button mat-icon-button type="button" aria-label="Retry generation" matTooltip="Retry" (click)="stateService.generate()">
+            <button mat-icon-button type="button" aria-label="Retry generation" matTooltip="Retry" (click)="queueGeneration()">
               <mat-icon fontSet="material-symbols-outlined">refresh</mat-icon>
             </button>
           }
@@ -50,7 +52,8 @@ import { AiStateService } from '../../core/ai-state.service';
     :host { display: block; width: 100%; }
     .composer-form { display: flex; align-items: center; gap: 9px; min-height: 44px; }
     .composer-icon { width: 19px; height: 19px; flex: 0 0 auto; color: var(--muted); font-size: 19px; }
-    .prompt-control { min-width: 0; flex: 1; height: 40px; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 13px; }
+    .prompt-field { min-width: 0; flex: 1; display: flex; align-items: center; }
+    .prompt-control { width: 100%; min-width: 0; height: 40px; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 13px; }
     .prompt-control::placeholder { color: var(--muted); opacity: 1; }
     .prompt-count { flex: 0 0 auto; color: var(--muted); font-size: 10px; white-space: nowrap; }
     .generate-button { min-height: 36px; flex: 0 0 auto; border-radius: 20px; background: var(--ink); color: var(--paper); padding: 0 14px; font-size: 11px; }
@@ -74,11 +77,22 @@ import { AiStateService } from '../../core/ai-state.service';
   `]
 })
 export class AiGenerationPanelComponent implements OnDestroy {
+  private sourceImageValue: string | null = null;
+
+  @Input()
+  set sourceImage(value: string | null) {
+    const normalizedValue = value || null;
+    if (normalizedValue === this.sourceImageValue) return;
+    this.sourceImageValue = normalizedValue;
+    this.stateService.setSourceImage(normalizedValue);
+  }
+
   @Output() readonly imageGenerated = new EventEmitter<AiImageResult>();
 
   readonly state$ = this.stateService.state$;
   private readonly stateSubscription: Subscription;
   private lastEmittedImageId: string | null;
+  private generateDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(readonly stateService: AiStateService) {
     this.lastEmittedImageId = this.stateService.snapshot.generatedImages[0]?.id ?? null;
@@ -91,6 +105,7 @@ export class AiGenerationPanelComponent implements OnDestroy {
   }
 
   ngOnDestroy(): void {
+    if (this.generateDebounceTimer) clearTimeout(this.generateDebounceTimer);
     this.stateSubscription.unsubscribe();
   }
 
@@ -101,6 +116,16 @@ export class AiGenerationPanelComponent implements OnDestroy {
 
   submitPrompt(event: Event): void {
     event.preventDefault();
-    this.stateService.generate();
+    this.queueGeneration();
+  }
+
+  queueGeneration(): void {
+    if (this.stateService.snapshot.isLoading) return;
+
+    if (this.generateDebounceTimer) clearTimeout(this.generateDebounceTimer);
+    this.generateDebounceTimer = setTimeout(() => {
+      this.generateDebounceTimer = null;
+      this.stateService.generate();
+    }, 300);
   }
 }
