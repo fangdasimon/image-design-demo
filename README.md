@@ -133,6 +133,18 @@ The response should report `ok: true` and `configured: true` before testing real
 
 ## Screenshots
 
+### AI workflow overview
+
+This three-image canvas view demonstrates the complete AI workflow:
+
+![Three-image AI workflow in Creation Studio](docs/screenshots/ai-workflow-overview.png)
+
+From left to right:
+
+1. Text-to-image result generated with `A woman in a white dress standing in a bright studio, soft shadows, realistic photography.`
+2. The default image loaded when the editor opens. It is also the source image used for the image-to-image example.
+3. Image-to-image result created from the default image with `Add a black hat to the woman while keeping the background and pose unchanged.`
+
 ### Text-to-image
 
 With no canvas image selected, the prompt bar runs text-to-image generation and inserts the new result as an editable canvas object.

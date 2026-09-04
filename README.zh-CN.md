@@ -133,6 +133,18 @@ curl http://127.0.0.1:4300/api/health
 
 ## 截图
 
+### AI 工作流总览
+
+下面这张画布截图展示了完整的 AI 使用流程：
+
+![Creation Studio 三图 AI 工作流](docs/screenshots/ai-workflow-overview.png)
+
+从左到右依次是：
+
+1. 文生图结果，使用提示词 `A woman in a white dress standing in a bright studio, soft shadows, realistic photography.`。
+2. 编辑器打开时默认加载的图片，也是图生图示例使用的原图。
+3. 基于中间默认图片生成的图生图结果，使用提示词 `Add a black hat to the woman while keeping the background and pose unchanged.`。
+
 ### 文生图
 
 当画布中没有选中图片时，底部 Prompt 会执行文生图，并把新的结果作为可继续编辑的画布对象加入。
