@@ -63,7 +63,8 @@ export class AppComponent {
 
   async onEditorReady(): Promise<void> {
     this.imageReady = true;
-    if (!this.pendingCanvasJson || !this.imageEditor) {
+    const pendingCanvasJson = this.pendingCanvasJson;
+    if (!this.hasRestorableCanvas(pendingCanvasJson) || !this.imageEditor) {
       this.pendingCanvasJson = this.imageEditor?.getDocumentSnapshot() ?? null;
       this.documentReady = true;
       this.scheduleDocumentSave();
@@ -71,7 +72,7 @@ export class AppComponent {
     }
 
     this.saveStateLabel = 'Restoring locally...';
-    const restored = await this.imageEditor.restoreDocument(this.pendingCanvasJson);
+    const restored = await this.imageEditor.restoreDocument(pendingCanvasJson);
     this.documentReady = true;
     if (restored) {
       this.saveStateLabel = 'Autosaved locally';
@@ -81,6 +82,17 @@ export class AppComponent {
     this.pendingCanvasJson = null;
     this.saveStateLabel = 'Saving locally...';
     this.scheduleDocumentSave();
+  }
+
+  private hasRestorableCanvas(canvasJson: string | null): canvasJson is string {
+    if (!canvasJson) return false;
+
+    try {
+      const canvas = JSON.parse(canvasJson) as { objects?: unknown };
+      return Array.isArray(canvas.objects) && canvas.objects.length > 0;
+    } catch {
+      return false;
+    }
   }
 
   onDocumentChange(canvasJson: string): void {
