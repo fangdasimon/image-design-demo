@@ -1,9 +1,10 @@
 import { Injectable } from '@angular/core';
-import { AiImageResult, AiState, DEFAULT_AI_STATE } from './models/ai.models';
+import { AiImageResult, AiState, DEFAULT_AI_STATE, STYLE_PRESETS, StylePreset } from './models/ai.models';
 
 interface PersistedAiState {
   prompt: string;
   selectedModel: string;
+  stylePreset: StylePreset;
   modelParameters: AiState['modelParameters'];
   history: AiImageResult[];
   favorites: string[];
@@ -36,6 +37,7 @@ export class StorageService {
       return {
         prompt: typeof parsed.prompt === 'string' ? parsed.prompt : DEFAULT_AI_STATE.prompt,
         selectedModel: typeof parsed.selectedModel === 'string' ? parsed.selectedModel : DEFAULT_AI_STATE.selectedModel,
+        stylePreset: this.readStylePreset(parsed.stylePreset),
         modelParameters: parsed.modelParameters ?? DEFAULT_AI_STATE.modelParameters,
         history: Array.isArray(parsed.history) ? parsed.history.slice(0, 8) : [],
         favorites: Array.isArray(parsed.favorites) ? parsed.favorites : []
@@ -53,6 +55,7 @@ export class StorageService {
     const persisted: PersistedAiState = {
       prompt: state.prompt,
       selectedModel: state.selectedModel,
+      stylePreset: state.stylePreset,
       modelParameters: state.modelParameters,
       history: state.history.slice(0, 8),
       favorites: state.favorites
@@ -68,6 +71,12 @@ export class StorageService {
         // Storage is optional and must never block the editor.
       }
     }
+  }
+
+  private readStylePreset(value: unknown): StylePreset {
+    return typeof value === 'string' && STYLE_PRESETS.some((preset) => preset.value === value)
+      ? value as StylePreset
+      : DEFAULT_AI_STATE.stylePreset;
   }
 
   readDocument(): Partial<PersistedDocument> {

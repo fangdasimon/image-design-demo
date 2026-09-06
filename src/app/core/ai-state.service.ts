@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, Subscription, timer } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
 import { AiImageService } from './ai-image.service';
-import { AiImageResult, AiState, DEFAULT_AI_STATE, ProgressStage } from './models/ai.models';
+import { AiImageResult, AiState, DEFAULT_AI_STATE, ProgressStage, STYLE_PRESETS, StylePreset } from './models/ai.models';
 import { StorageService } from './storage.service';
 
 @Injectable({ providedIn: 'root' })
@@ -13,18 +13,22 @@ export class AiStateService {
 
   constructor(private readonly aiImageService: AiImageService, private readonly storage: StorageService) {
     const saved = this.storage.read();
-    const restoredHistory = (saved.history ?? []).map((item) => ({ ...item, isFavorite: (saved.favorites ?? []).includes(item.id) }));
+    const savedHistory = saved.history ?? [];
+    const savedFavoriteIds = saved.favorites ?? [];
+    const validFavoriteIds = [...new Set(savedFavoriteIds)].filter((id) => savedHistory.some((item) => item.id === id));
+    const restoredHistory = savedHistory.map((item) => ({ ...item, isFavorite: validFavoriteIds.includes(item.id) }));
     this.stateSubject = new BehaviorSubject<AiState>({
       ...DEFAULT_AI_STATE,
       ...saved,
       generatedImages: restoredHistory.slice(0, 6),
       history: restoredHistory,
-      favorites: saved.favorites ?? [],
+      favorites: validFavoriteIds,
       isLoading: false,
       progressStage: 'idle',
       error: null
     });
     this.state$ = this.stateSubject.asObservable();
+    if (validFavoriteIds.length !== savedFavoriteIds.length) this.persist();
   }
 
   get snapshot(): AiState {
@@ -41,6 +45,11 @@ export class AiStateService {
 
   setModel(selectedModel: string): void {
     this.patch({ selectedModel });
+  }
+
+  setStylePreset(stylePreset: StylePreset): void {
+    this.patch({ stylePreset });
+    this.persist();
   }
 
   setSourceImage(sourceImage: string | null): void {
@@ -72,7 +81,7 @@ export class AiStateService {
       .pipe(
         switchMap(() => {
           this.patch({ progressStage: 'generating' });
-          return this.aiImageService.generate(prompt, state.modelParameters, state.sourceImage);
+          return this.aiImageService.generate(this.buildRequestPrompt(prompt, state.stylePreset), state.modelParameters, state.sourceImage);
         }),
         switchMap((result) => {
           this.patch({ progressStage: 'processing' });
@@ -114,6 +123,11 @@ export class AiStateService {
 
   private patch(update: Partial<AiState>): void {
     this.stateSubject.next({ ...this.snapshot, ...update });
+  }
+
+  private buildRequestPrompt(prompt: string, stylePreset: StylePreset): string {
+    const modifier = STYLE_PRESETS.find((preset) => preset.value === stylePreset)?.promptSuffix;
+    return modifier ? `${prompt}, ${modifier}` : prompt;
   }
 
   private persist(): void {

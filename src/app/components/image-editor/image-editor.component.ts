@@ -1,4 +1,4 @@
-import { AfterViewInit, Component, ElementRef, EventEmitter, OnDestroy, Output, ViewChild } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, EventEmitter, Input, OnChanges, OnDestroy, Output, SimpleChanges, ViewChild } from '@angular/core';
 import ImageEditor from 'tui-image-editor';
 import { DEMO_ART_DATA_URL } from '../../core/demo-art';
 import { ToolAction } from '../toolbar/toolbar.component';
@@ -69,22 +69,82 @@ const CREATION_SELECTION_STYLE = {
   transparentCorners: false
 };
 
+const WORKSPACE_CONTENT_OFFSET_X = 10;
+const DOCUMENT_RESTORE_TIMEOUT_MS = 5000;
+
+interface MinimapBounds {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+interface MinimapMetrics {
+  cssWidth: number;
+  cssHeight: number;
+  pixelWidth: number;
+  pixelHeight: number;
+  scale: number;
+  padX: number;
+  padY: number;
+}
+
 @Component({
   selector: 'app-image-editor',
   standalone: true,
   template: `
-    <div class="editor-frame creation-editor" [class.has-image]="imageReady">
+    <div class="editor-frame creation-editor" [class.has-image]="imageReady" [class.crop-active]="cropActive">
       <div #editorHost class="editor-host" aria-label="Image editing canvas"></div>
+      <div #cropMask class="crop-mask" aria-hidden="true">
+        <span class="crop-mask-full"></span>
+        <span class="crop-mask-edge crop-mask-top"></span>
+        <span class="crop-mask-edge crop-mask-right"></span>
+        <span class="crop-mask-edge crop-mask-bottom"></span>
+        <span class="crop-mask-edge crop-mask-left"></span>
+      </div>
       @if (!imageReady) {
         <div class="canvas-empty"><span class="empty-index">01</span><strong>Drop an image here</strong><span>or use Upload image to begin</span></div>
       }
       <div class="canvas-corners corner-tl"></div><div class="canvas-corners corner-tr"></div><div class="canvas-corners corner-bl"></div><div class="canvas-corners corner-br"></div>
+      @if (experimentalMinimapEnabled) {
+        <aside class="canvas-minimap" aria-label="Canvas overview">
+          <div class="canvas-minimap-header">
+            <strong>Overview</strong>
+            <button type="button" class="canvas-minimap-close" aria-label="Hide overview" title="Hide overview" (click)="setExperimentalMinimapEnabled(false)">
+              <span class="creation-ui-icon creation-ui-icon--close" aria-hidden="true"></span>
+            </button>
+          </div>
+          <div
+            #minimapSurface
+            class="canvas-minimap-surface"
+            [class.is-dragging]="minimapDragging"
+            (pointerdown)="onMinimapPointerDown($event)"
+            (pointermove)="onMinimapPointerMove($event)"
+            (pointerup)="onMinimapPointerUp($event)"
+            (pointercancel)="onMinimapPointerUp($event)"
+          >
+            <canvas #minimapCanvas class="canvas-minimap-canvas"></canvas>
+            <div
+              class="canvas-minimap-viewport"
+              [class.is-empty]="!minimapReady"
+              [style.left.px]="minimapViewport.left"
+              [style.top.px]="minimapViewport.top"
+              [style.width.px]="minimapViewport.width"
+              [style.height.px]="minimapViewport.height"
+            ></div>
+          </div>
+        </aside>
+      }
     </div>
   `,
   styles: [`
     :host { display: block; width: 100%; height: 100%; }
     .editor-frame { position: relative; display: grid; width: 100%; height: 100%; min-height: 0; place-items: center; overflow: hidden; background: var(--paper); }
     .editor-host { width: 100%; height: 100%; }
+    .crop-mask { position: absolute; inset: 0; display: none; pointer-events: none; }
+    .crop-mask-full, .crop-mask-edge { position: absolute; display: block; background: rgba(0, 0, 0, .62); pointer-events: none; }
+    .crop-mask-full { inset: 0; }
+    .crop-mask-edge { display: none; }
     .canvas-empty { position: absolute; display: grid; justify-items: center; gap: 9px; color: var(--muted); pointer-events: none; text-align: center; }
     .canvas-empty strong { color: var(--ink); font-size: 16px; font-weight: 120; }
     .canvas-empty span:last-child { font-size: 11px; }
@@ -95,11 +155,81 @@ const CREATION_SELECTION_STYLE = {
     .corner-tr { top: 18px; right: 18px; border-top: 2px solid; border-right: 2px solid; }
     .corner-bl { bottom: 18px; left: 18px; border-bottom: 2px solid; border-left: 2px solid; }
     .corner-br { right: 18px; bottom: 18px; border-right: 2px solid; border-bottom: 2px solid; }
+    .canvas-minimap {
+      position: absolute;
+      right: 66px;
+      bottom: 20px;
+      z-index: 6;
+      display: grid;
+      width: min(300px, calc(100vw - 48px));
+      gap: 8px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: rgba(255, 255, 255, .96);
+      padding: 10px;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, .09);
+    }
+    .canvas-minimap-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--ink);
+      font-size: 11px;
+    }
+    .canvas-minimap-header strong { font-weight: 120; }
+    .canvas-minimap-close {
+      display: grid;
+      place-items: center;
+      width: 26px;
+      height: 26px;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      padding: 0;
+      cursor: pointer;
+    }
+    .canvas-minimap-close:hover { background: var(--primary-grey); color: var(--ink); }
+    .canvas-minimap-close .creation-ui-icon { width: 16px; height: 16px; }
+    .canvas-minimap-surface {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1.52;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      background: #f8f8f8;
+      touch-action: none;
+      cursor: grab;
+    }
+    .canvas-minimap-surface.is-dragging { cursor: grabbing; }
+    .canvas-minimap-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .canvas-minimap-viewport {
+      position: absolute;
+      border: 1px solid rgba(17, 17, 17, .9);
+      background: rgba(255, 255, 255, .14);
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, .65) inset;
+      pointer-events: none;
+    }
+    .canvas-minimap-viewport.is-empty { opacity: 0; }
     @media (max-width: 767px) { .editor-frame { min-height: 0; } .canvas-corners { width: 15px; height: 15px; } }
+    @media (max-width: 767px) {
+      .canvas-minimap {
+        display: none !important;
+      }
+    }
   `]
 })
-export class ImageEditorComponent implements AfterViewInit, OnDestroy {
+export class ImageEditorComponent implements AfterViewInit, OnChanges, OnDestroy {
+  @Input() experimentalMinimapEnabled = true;
+  @Output() readonly experimentalMinimapEnabledChange = new EventEmitter<boolean>();
   @ViewChild('editorHost', { static: true }) private readonly editorHost!: ElementRef<HTMLDivElement>;
+  @ViewChild('cropMask', { static: true }) private readonly cropMask!: ElementRef<HTMLDivElement>;
+  @ViewChild('minimapCanvas') private readonly minimapCanvas?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('minimapSurface') private readonly minimapSurface?: ElementRef<HTMLElement>;
   @Output() readonly ready = new EventEmitter<void>();
   @Output() readonly statusChange = new EventEmitter<string>();
   @Output() readonly filterChange = new EventEmitter<boolean>();
@@ -113,12 +243,17 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
   private resizeInputCleanup?: () => void;
   private cropMenuCleanup?: () => void;
   private textMenuCleanup?: () => void;
+  private menuLayoutCleanup?: () => void;
   private canvasChangeCleanup?: () => void;
+  private minimapResizeObserver?: ResizeObserver;
+  private minimapRefreshFrame?: number;
+  private minimapRefreshMode: 'full' | 'viewport' | null = null;
+  private minimapRenderInProgress = false;
+  private minimapRenderToken = 0;
   private textModeActive = false;
   private readonly textModeObjectState = new Map<any, { evented: boolean; selectable: boolean; hoverCursor: any }>();
   private readonly defaultShapeSize = 128;
   private resizeActions?: any;
-  private nativeResizeActions?: any;
   private resizeSession?: {
     target: any;
     objectId: number;
@@ -134,10 +269,31 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
   private workspaceCanvasExpanded = false;
   private workspaceZoomBase = 1;
   private defaultImageFitFactor = 1;
-  private cropActive = false;
+  cropActive = false;
+  private cropMaskCanvas?: HTMLElement;
   private grayscaleActive = false;
   private documentChangesEnabled = false;
+  private minimapBounds: MinimapBounds | null = null;
+  private minimapMetrics: MinimapMetrics | null = null;
+  private minimapDraggingPointerId: number | null = null;
+  minimapDragging = false;
+  minimapReady = false;
+  minimapViewport = { left: 0, top: 0, width: 0, height: 0 };
   imageReady = false;
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (!changes['experimentalMinimapEnabled']) return;
+
+    if (!this.experimentalMinimapEnabled) {
+      this.teardownExperimentalMinimap();
+      return;
+    }
+
+    window.setTimeout(() => {
+      this.syncExperimentalMinimapLifecycle();
+      this.scheduleExperimentalMinimapRefresh('full');
+    });
+  }
 
   ngAfterViewInit(): void {
     this.editor = new ImageEditor(this.editorHost.nativeElement, {
@@ -156,9 +312,11 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
     this.attachSelectionEvents();
     this.attachDocumentChangeEvents();
     this.attachCanvasPan();
+    this.attachMenuLayoutBehavior();
     this.attachHelpMenuActions();
     this.attachImageProcessingBehavior();
     this.observeWorkspaceResize();
+    this.syncExperimentalMinimapLifecycle();
     void this.loadImageFromUrl(DEMO_ART_DATA_URL, 'Creation study');
   }
 
@@ -169,7 +327,9 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
     this.resizeInputCleanup?.();
     this.cropMenuCleanup?.();
     this.textMenuCleanup?.();
+    this.menuLayoutCleanup?.();
     this.canvasChangeCleanup?.();
+    this.teardownExperimentalMinimap();
     this.leaveTextMode();
     if (this.rotationSyncFrame != null) window.cancelAnimationFrame(this.rotationSyncFrame);
     this.workspaceResizeObserver?.disconnect();
@@ -188,7 +348,7 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
       this.emitSelectedImage(activeObject);
       this.updateImageProcessingPanelHints();
       if (this.editor.ui?.submenu === 'resize') {
-        this.beginResizeSession(activeObject);
+        this.beginResizeSession(this.getResizeTarget());
         this.syncResizePanel();
       }
     });
@@ -215,7 +375,10 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
     if (!canvas) return;
 
     const eventNames = ['object:added', 'object:removed', 'object:modified', 'path:created', 'text:changed'];
-    const onCanvasChange = (): void => this.emitDocumentSnapshot();
+    const onCanvasChange = (): void => {
+      this.emitDocumentSnapshot();
+      this.scheduleExperimentalMinimapRefresh('full');
+    };
     eventNames.forEach((eventName) => canvas.on(eventName, onCanvasChange));
     this.canvasChangeCleanup = () => eventNames.forEach((eventName) => canvas.off(eventName, onCanvasChange));
   }
@@ -226,6 +389,406 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
     const snapshot = this.getDocumentSnapshot();
     if (!snapshot) return;
     this.documentChange.emit(snapshot);
+  }
+
+  private syncExperimentalMinimapLifecycle(): void {
+    if (!this.experimentalMinimapEnabled) {
+      this.teardownExperimentalMinimap();
+      return;
+    }
+
+    const surface = this.minimapSurface?.nativeElement;
+    const canvas = this.minimapCanvas?.nativeElement;
+    if (!this.editor || !surface || !canvas) return;
+
+    if (typeof ResizeObserver !== 'undefined' && !this.minimapResizeObserver) {
+      this.minimapResizeObserver = new ResizeObserver(() => this.scheduleExperimentalMinimapRefresh('full'));
+      this.minimapResizeObserver.observe(surface);
+    }
+  }
+
+  private teardownExperimentalMinimap(): void {
+    if (this.minimapRefreshFrame != null) {
+      window.cancelAnimationFrame(this.minimapRefreshFrame);
+      this.minimapRefreshFrame = undefined;
+    }
+    this.minimapRefreshMode = null;
+    this.minimapResizeObserver?.disconnect();
+    this.minimapResizeObserver = undefined;
+    this.minimapRenderToken += 1;
+    this.minimapRenderInProgress = false;
+    this.minimapDraggingPointerId = null;
+    this.minimapDragging = false;
+    this.minimapBounds = null;
+    this.minimapMetrics = null;
+    this.minimapReady = false;
+    this.minimapViewport = { left: 0, top: 0, width: 0, height: 0 };
+    this.clearExperimentalMinimapCanvas();
+  }
+
+  private scheduleExperimentalMinimapRefresh(mode: 'full' | 'viewport' = 'full'): void {
+    if (!this.experimentalMinimapEnabled || !this.editor) return;
+
+    this.syncExperimentalMinimapLifecycle();
+    this.minimapRefreshMode = this.minimapRefreshMode === 'full' || mode === 'full' ? 'full' : mode;
+    if (this.minimapRefreshFrame != null || this.minimapRenderInProgress) return;
+
+    this.minimapRefreshFrame = window.requestAnimationFrame(() => {
+      this.minimapRefreshFrame = undefined;
+      const nextMode = this.minimapRefreshMode;
+      this.minimapRefreshMode = null;
+      if (!nextMode) return;
+
+      if (nextMode === 'viewport') {
+        this.updateExperimentalMinimapViewport();
+      } else {
+        void this.renderExperimentalMinimapSnapshot();
+      }
+    });
+  }
+
+  private async renderExperimentalMinimapSnapshot(): Promise<void> {
+    const canvas = this.editor?._graphics?.getCanvas?.();
+    const visibleCanvas = this.minimapCanvas?.nativeElement;
+    const surface = this.minimapSurface?.nativeElement;
+    if (!canvas || !visibleCanvas || !surface) return;
+
+    const renderToken = ++this.minimapRenderToken;
+    this.minimapRenderInProgress = true;
+    try {
+      const bounds = this.getExperimentalMinimapBounds(canvas);
+      if (!bounds) {
+        this.minimapReady = false;
+        this.clearExperimentalMinimapCanvas();
+        return;
+      }
+      const metrics = this.getExperimentalMinimapMetrics(surface, bounds);
+      if (!bounds || !metrics) {
+        this.minimapReady = false;
+        this.clearExperimentalMinimapCanvas();
+        return;
+      }
+
+      this.minimapBounds = bounds;
+      this.minimapMetrics = metrics;
+      visibleCanvas.width = metrics.pixelWidth;
+      visibleCanvas.height = metrics.pixelHeight;
+      visibleCanvas.style.width = `${metrics.cssWidth}px`;
+      visibleCanvas.style.height = `${metrics.cssHeight}px`;
+
+      const fitScale = metrics.scale;
+      const offsetX = metrics.padX;
+      const offsetY = metrics.padY;
+      const snapshot = this.renderCanvasForMinimap(canvas, metrics.pixelWidth, metrics.pixelHeight, [
+        fitScale,
+        0,
+        0,
+        fitScale,
+        offsetX - bounds.left * fitScale,
+        offsetY - bounds.top * fitScale,
+      ]);
+      if (renderToken !== this.minimapRenderToken || !this.experimentalMinimapEnabled || !snapshot) {
+        return;
+      }
+
+      const context = visibleCanvas.getContext('2d');
+      if (!context) return;
+      context.clearRect(0, 0, metrics.pixelWidth, metrics.pixelHeight);
+      context.drawImage(snapshot, 0, 0, metrics.pixelWidth, metrics.pixelHeight);
+
+      this.minimapReady = true;
+      this.updateExperimentalMinimapViewport({
+        bounds,
+        metrics,
+        fitScale,
+        offsetX,
+        offsetY,
+      });
+    } finally {
+      this.minimapRenderInProgress = false;
+      if (this.minimapRefreshMode) {
+        const nextMode = this.minimapRefreshMode;
+        this.minimapRefreshMode = null;
+        this.scheduleExperimentalMinimapRefresh(nextMode);
+      }
+    }
+  }
+
+  private updateExperimentalMinimapViewport(preset?: {
+    bounds: MinimapBounds;
+    metrics: MinimapMetrics;
+    fitScale: number;
+    offsetX: number;
+    offsetY: number;
+  }): void {
+    const canvas = this.editor?._graphics?.getCanvas?.();
+    const visibleCanvas = this.minimapCanvas?.nativeElement;
+    if (!canvas || !visibleCanvas) return;
+
+    const bounds = preset?.bounds ?? this.minimapBounds;
+    const metrics = preset?.metrics ?? this.minimapMetrics;
+    if (!bounds || !metrics) {
+      this.scheduleExperimentalMinimapRefresh('full');
+      return;
+    }
+
+    const fitScale = preset?.fitScale ?? Math.min(
+      metrics.pixelWidth / Math.max(1, bounds.width),
+      metrics.pixelHeight / Math.max(1, bounds.height)
+    );
+    const offsetX = preset?.offsetX ?? (metrics.pixelWidth - bounds.width * fitScale) / 2;
+    const offsetY = preset?.offsetY ?? (metrics.pixelHeight - bounds.height * fitScale) / 2;
+    const viewport = typeof canvas.calcViewportBoundaries === 'function'
+      ? canvas.calcViewportBoundaries()
+      : null;
+    if (!viewport?.tl || !viewport?.br) {
+      this.minimapViewport = { left: offsetX, top: offsetY, width: 0, height: 0 };
+      return;
+    }
+
+    const devicePixelRatio = Math.max(1, window.devicePixelRatio || 1);
+    const viewportLeft = offsetX + (viewport.tl.x - bounds.left) * fitScale;
+    const viewportTop = offsetY + (viewport.tl.y - bounds.top) * fitScale;
+    const viewportRight = offsetX + (viewport.br.x - bounds.left) * fitScale;
+    const viewportBottom = offsetY + (viewport.br.y - bounds.top) * fitScale;
+    const left = Math.max(0, Math.min(metrics.pixelWidth, viewportLeft));
+    const top = Math.max(0, Math.min(metrics.pixelHeight, viewportTop));
+    const right = Math.max(0, Math.min(metrics.pixelWidth, viewportRight));
+    const bottom = Math.max(0, Math.min(metrics.pixelHeight, viewportBottom));
+
+    this.minimapViewport = {
+      left: left / devicePixelRatio,
+      top: top / devicePixelRatio,
+      width: Math.max(1, (right - left) / devicePixelRatio),
+      height: Math.max(1, (bottom - top) / devicePixelRatio),
+    };
+  }
+
+  private clearExperimentalMinimapCanvas(): void {
+    const visibleCanvas = this.minimapCanvas?.nativeElement;
+    const context = visibleCanvas?.getContext('2d');
+    if (visibleCanvas && context) {
+      context.clearRect(0, 0, visibleCanvas.width, visibleCanvas.height);
+    }
+  }
+
+  private getExperimentalMinimapBounds(canvas: any): MinimapBounds | null {
+    const items = [
+      ...(Array.isArray(canvas?.getObjects?.()) ? canvas.getObjects() : []),
+      canvas?.backgroundImage,
+      canvas?.overlayImage,
+    ].filter((item: any) => Boolean(item) && item.type !== 'cropzone' && item.type !== 'activeSelection' && item.visible !== false);
+
+    if (!items.length) {
+      const width = Math.max(1, Number(canvas?.getWidth?.()) || 1);
+      const height = Math.max(1, Number(canvas?.getHeight?.()) || 1);
+      return { left: 0, top: 0, width, height };
+    }
+
+    let left = Number.POSITIVE_INFINITY;
+    let top = Number.POSITIVE_INFINITY;
+    let right = Number.NEGATIVE_INFINITY;
+    let bottom = Number.NEGATIVE_INFINITY;
+
+    items.forEach((item: any) => {
+      const rect = item?.getBoundingRect?.(true, true) ?? item?.getBoundingRect?.(true) ?? item?.getBoundingRect?.();
+      if (!rect) return;
+      const rectLeft = Number(rect.left);
+      const rectTop = Number(rect.top);
+      const rectWidth = Number(rect.width);
+      const rectHeight = Number(rect.height);
+      if (![rectLeft, rectTop, rectWidth, rectHeight].every((value) => Number.isFinite(value))) return;
+
+      left = Math.min(left, rectLeft);
+      top = Math.min(top, rectTop);
+      right = Math.max(right, rectLeft + rectWidth);
+      bottom = Math.max(bottom, rectTop + rectHeight);
+    });
+
+    if (![left, top, right, bottom].every((value) => Number.isFinite(value))) {
+      const width = Math.max(1, Number(canvas?.getWidth?.()) || 1);
+      const height = Math.max(1, Number(canvas?.getHeight?.()) || 1);
+      return { left: 0, top: 0, width, height };
+    }
+
+    const viewport = canvas?.calcViewportBoundaries?.();
+    const viewportLeft = Number(viewport?.tl?.x);
+    const viewportTop = Number(viewport?.tl?.y);
+    const viewportRight = Number(viewport?.br?.x);
+    const viewportBottom = Number(viewport?.br?.y);
+    if ([viewportLeft, viewportTop, viewportRight, viewportBottom].every((value) => Number.isFinite(value))) {
+      left = Math.min(left, viewportLeft);
+      top = Math.min(top, viewportTop);
+      right = Math.max(right, viewportRight);
+      bottom = Math.max(bottom, viewportBottom);
+    }
+
+    const width = Math.max(1, right - left);
+    const height = Math.max(1, bottom - top);
+    const zoom = Math.max(0.05, Number(canvas?.getZoom?.()) || 1);
+    const viewportWidth = Math.max(1, (Number(canvas?.getWidth?.()) || 1) / zoom);
+    const viewportHeight = Math.max(1, (Number(canvas?.getHeight?.()) || 1) / zoom);
+    const paddingX = Math.max(32, Math.round(width * 0.08), Math.round(viewportWidth * 0.5));
+    const paddingY = Math.max(32, Math.round(height * 0.08), Math.round(viewportHeight * 0.5));
+    return {
+      left: left - paddingX,
+      top: top - paddingY,
+      width: width + paddingX * 2,
+      height: height + paddingY * 2,
+    };
+  }
+
+  private getExperimentalMinimapMetrics(surface: HTMLElement, bounds: MinimapBounds): MinimapMetrics | null {
+    const rect = surface.getBoundingClientRect();
+    const cssWidth = Math.max(1, Math.round(rect.width));
+    const cssHeight = Math.max(1, Math.round(rect.height));
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const pixelWidth = Math.max(1, Math.round(cssWidth * dpr));
+    const pixelHeight = Math.max(1, Math.round(cssHeight * dpr));
+    const usableWidth = Math.max(1, pixelWidth - 16);
+    const usableHeight = Math.max(1, pixelHeight - 16);
+    const scale = Math.min(usableWidth / bounds.width, usableHeight / bounds.height);
+    const renderWidth = bounds.width * scale;
+    const renderHeight = bounds.height * scale;
+    const padX = (pixelWidth - renderWidth) / 2;
+    const padY = (pixelHeight - renderHeight) / 2;
+
+    return {
+      cssWidth,
+      cssHeight,
+      pixelWidth,
+      pixelHeight,
+      scale,
+      padX,
+      padY,
+    };
+  }
+
+  private renderCanvasForMinimap(canvas: any, width: number, height: number, viewportTransform: number[]): HTMLCanvasElement | null {
+    const snapshot = document.createElement('canvas');
+    snapshot.width = width;
+    snapshot.height = height;
+    const context = snapshot.getContext('2d');
+    if (!context || typeof canvas?.renderCanvas !== 'function') return null;
+
+    const originalState = {
+      width: canvas.width,
+      height: canvas.height,
+      viewportTransform: Array.isArray(canvas.viewportTransform) ? [...canvas.viewportTransform] : null,
+      interactive: canvas.interactive,
+      contextTop: canvas.contextTop,
+      enableRetinaScaling: canvas.enableRetinaScaling,
+    };
+
+    try {
+      canvas.cancelRequestedRender?.();
+      canvas.width = width;
+      canvas.height = height;
+      canvas.viewportTransform = viewportTransform;
+      canvas.interactive = false;
+      canvas.contextTop = null;
+      canvas.enableRetinaScaling = false;
+      canvas.calcViewportBoundaries?.();
+      const objects = (canvas._objects ?? canvas.getObjects?.() ?? [])
+        .filter((object: any) => object?.visible !== false && object?.type !== 'cropzone' && object?.type !== 'activeSelection');
+      canvas.renderCanvas(context, objects);
+      return snapshot;
+    } catch {
+      return null;
+    } finally {
+      canvas.width = originalState.width;
+      canvas.height = originalState.height;
+      if (originalState.viewportTransform) canvas.viewportTransform = originalState.viewportTransform;
+      canvas.interactive = originalState.interactive;
+      canvas.contextTop = originalState.contextTop;
+      canvas.enableRetinaScaling = originalState.enableRetinaScaling;
+      canvas.calcViewportBoundaries?.();
+      canvas.requestRenderAll?.();
+    }
+  }
+
+  setExperimentalMinimapEnabled(visible: boolean): void {
+    this.experimentalMinimapEnabledChange.emit(visible);
+  }
+
+  onMinimapPointerDown(event: PointerEvent): void {
+    if (!this.experimentalMinimapEnabled || !this.minimapReady) return;
+
+    const canvas = this.editor?._graphics?.getCanvas?.();
+    const visibleCanvas = this.minimapCanvas?.nativeElement;
+    const surface = this.minimapSurface?.nativeElement;
+    const bounds = this.minimapBounds;
+    const metrics = this.minimapMetrics;
+    if (!canvas || !visibleCanvas || !surface || !bounds || !metrics) return;
+
+    this.minimapDraggingPointerId = event.pointerId;
+    this.minimapDragging = true;
+    surface.setPointerCapture?.(event.pointerId);
+    this.recenterCanvasFromMinimapEvent(event, canvas, bounds, metrics);
+    event.preventDefault();
+  }
+
+  onMinimapPointerMove(event: PointerEvent): void {
+    if (!this.minimapDragging || this.minimapDraggingPointerId !== event.pointerId) return;
+
+    const canvas = this.editor?._graphics?.getCanvas?.();
+    const bounds = this.minimapBounds;
+    const metrics = this.minimapMetrics;
+    if (!canvas || !bounds || !metrics) return;
+
+    this.recenterCanvasFromMinimapEvent(event, canvas, bounds, metrics);
+    event.preventDefault();
+  }
+
+  onMinimapPointerUp(event: PointerEvent): void {
+    if (this.minimapDraggingPointerId !== event.pointerId) return;
+
+    this.minimapDraggingPointerId = null;
+    this.minimapDragging = false;
+    this.minimapSurface?.nativeElement.releasePointerCapture?.(event.pointerId);
+  }
+
+  private recenterCanvasFromMinimapEvent(
+    event: PointerEvent,
+    canvas: any,
+    bounds: MinimapBounds,
+    metrics: MinimapMetrics
+  ): void {
+    const fitScale = metrics.scale;
+    const surfaceRect = this.minimapCanvas?.nativeElement.getBoundingClientRect();
+    if (!surfaceRect?.width || !surfaceRect?.height) return;
+
+    const localX = ((event.clientX - surfaceRect.left) / surfaceRect.width) * metrics.pixelWidth;
+    const localY = ((event.clientY - surfaceRect.top) / surfaceRect.height) * metrics.pixelHeight;
+    const targetX = bounds.left + (localX - metrics.padX) / fitScale;
+    const targetY = bounds.top + (localY - metrics.padY) / fitScale;
+    const zoom = Math.max(0.05, Number(canvas.getZoom?.()) || 1);
+    const viewportWidth = Number(canvas.getWidth?.()) || 1;
+    const viewportHeight = Number(canvas.getHeight?.()) || 1;
+    const worldViewportWidth = viewportWidth / zoom;
+    const worldViewportHeight = viewportHeight / zoom;
+    const centerX = this.clampMinimapCenter(targetX, bounds.left, bounds.left + bounds.width, worldViewportWidth);
+    const centerY = this.clampMinimapCenter(targetY, bounds.top, bounds.top + bounds.height, worldViewportHeight);
+    const topLeft = { x: centerX - worldViewportWidth / 2, y: centerY - worldViewportHeight / 2 };
+    canvas.setViewportTransform?.([
+      zoom,
+      0,
+      0,
+      zoom,
+      -topLeft.x * zoom,
+      -topLeft.y * zoom,
+    ]);
+    canvas.calcOffset?.();
+    canvas.requestRenderAll?.();
+    this.scheduleExperimentalMinimapRefresh('viewport');
+  }
+
+  private clampMinimapCenter(value: number, min: number, max: number, viewportSize: number): number {
+    const midpoint = (min + max) / 2;
+    const minCenter = min + viewportSize / 2;
+    const maxCenter = max - viewportSize / 2;
+    if (minCenter > maxCenter) return midpoint;
+    return Math.max(minCenter, Math.min(maxCenter, value));
   }
 
   getDocumentSnapshot(): string | null {
@@ -246,13 +809,6 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
     if (!resizeActions || !resizeButton || this.resizeActions) return;
 
     this.resizeActions = resizeActions;
-    this.nativeResizeActions = {
-      getCurrentDimensions: resizeActions.getCurrentDimensions,
-      preview: resizeActions.preview,
-      lockAspectRatio: resizeActions.lockAspectRatio,
-      resize: resizeActions.resize,
-      reset: resizeActions.reset,
-    };
     resizeActions.getCurrentDimensions = () => this.getResizeDimensions();
     resizeActions.preview = (actor: 'width' | 'height', value: number, lockState: boolean) => {
       this.previewResize(actor, value, lockState);
@@ -284,9 +840,9 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
       event.stopImmediatePropagation();
 
       const isOpen = this.editor.ui?.submenu === 'resize';
-      if (!isOpen) this.beginResizeSession(this.getActiveObject());
+      if (!isOpen) this.beginResizeSession(this.getResizeTarget());
       this.editor.ui.changeMenu('resize', true, false);
-      if (!isOpen) this.syncResizePanel();
+      this.syncResizePanel();
     };
     resizeButton.addEventListener('click', onResizeMenuClick, true);
     this.resizeMenuCleanup = () => resizeButton.removeEventListener('click', onResizeMenuClick, true);
@@ -338,19 +894,190 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
     });
   }
 
+  private ensureCropMaskLayer(canvas: any): HTMLElement | null {
+    const mask = this.cropMask?.nativeElement;
+    const canvasContainer = (canvas?.lowerCanvasEl?.parentElement || canvas?.upperCanvasEl?.parentElement) as HTMLElement | null;
+    if (!mask || !canvasContainer) return null;
+
+    if (mask.parentElement !== canvasContainer) {
+      const upperCanvas = canvas.upperCanvasEl as Node | undefined;
+      canvasContainer.insertBefore(mask, upperCanvas && upperCanvas.parentNode === canvasContainer ? upperCanvas : null);
+    }
+    this.cropMaskCanvas = canvasContainer;
+    return mask;
+  }
+
+  private hideCropMask(): void {
+    const mask = this.cropMask?.nativeElement;
+    if (mask) {
+      mask.classList.remove('is-visible');
+      mask.style.display = 'none';
+    }
+  }
+
+  private showCropMask(): void {
+    this.syncCropMask();
+  }
+
+  private syncCropMask(): void {
+    const canvas = this.editor?._graphics?.getCanvas?.();
+    const mask = this.ensureCropMaskLayer(canvas);
+    if (!mask) return;
+    if (!this.cropActive) {
+      mask.classList.remove('is-visible');
+      mask.style.display = 'none';
+      return;
+    }
+
+    mask.classList.add('is-visible');
+    mask.style.display = 'block';
+    const fullMask = mask.querySelector<HTMLElement>('.crop-mask-full');
+    const edges = {
+      top: mask.querySelector<HTMLElement>('.crop-mask-top'),
+      right: mask.querySelector<HTMLElement>('.crop-mask-right'),
+      bottom: mask.querySelector<HTMLElement>('.crop-mask-bottom'),
+      left: mask.querySelector<HTMLElement>('.crop-mask-left'),
+    };
+    const hideEdges = (): void => Object.values(edges).forEach((edge) => {
+      if (edge) edge.style.display = 'none';
+    });
+    const showFullMask = (): void => {
+      hideEdges();
+      if (fullMask) fullMask.style.display = 'block';
+    };
+
+    const cropzone = this.editor?._graphics?.getComponent?.('CROPPER')?._cropzone;
+    if (!cropzone || !this.isCropzoneInViewport(cropzone, canvas)) {
+      showFullMask();
+      return;
+    }
+
+    const viewport = canvas.viewportTransform || [1, 0, 0, 1, 0, 0];
+    const scaleX = Number(viewport[0]) || 1;
+    const scaleY = Number(viewport[3]) || 1;
+    const offsetX = Number(viewport[4]) || 0;
+    const offsetY = Number(viewport[5]) || 0;
+    const logicalLeft = Number(cropzone.left) || 0;
+    const logicalTop = Number(cropzone.top) || 0;
+    const logicalWidth = Math.abs(Number(cropzone.width) || 0) * Math.abs(Number(cropzone.scaleX) || 1);
+    const logicalHeight = Math.abs(Number(cropzone.height) || 0) * Math.abs(Number(cropzone.scaleY) || 1);
+    const screenLeft = Math.min(logicalLeft * scaleX + offsetX, (logicalLeft + logicalWidth) * scaleX + offsetX);
+    const screenTop = Math.min(logicalTop * scaleY + offsetY, (logicalTop + logicalHeight) * scaleY + offsetY);
+    const screenRight = Math.max(logicalLeft * scaleX + offsetX, (logicalLeft + logicalWidth) * scaleX + offsetX);
+    const screenBottom = Math.max(logicalTop * scaleY + offsetY, (logicalTop + logicalHeight) * scaleY + offsetY);
+    const canvasWidth = Math.max(1, Number(canvas.getWidth?.()) || this.cropMaskCanvas?.clientWidth || 1);
+    const canvasHeight = Math.max(1, Number(canvas.getHeight?.()) || this.cropMaskCanvas?.clientHeight || 1);
+    const left = Math.max(0, Math.min(canvasWidth, screenLeft));
+    const top = Math.max(0, Math.min(canvasHeight, screenTop));
+    const right = Math.max(left, Math.min(canvasWidth, screenRight));
+    const bottom = Math.max(top, Math.min(canvasHeight, screenBottom));
+
+    if (fullMask) fullMask.style.display = 'none';
+    const setEdge = (edge: HTMLElement | null, leftValue: number, topValue: number, width: number, height: number): void => {
+      if (!edge) return;
+      edge.style.display = 'block';
+      edge.style.left = `${Math.max(0, leftValue)}px`;
+      edge.style.top = `${Math.max(0, topValue)}px`;
+      edge.style.width = `${Math.max(0, width)}px`;
+      edge.style.height = `${Math.max(0, height)}px`;
+    };
+    setEdge(edges.top, 0, 0, canvasWidth, top);
+    setEdge(edges.right, right, top, canvasWidth - right, bottom - top);
+    setEdge(edges.bottom, 0, bottom, canvasWidth, canvasHeight - bottom);
+    setEdge(edges.left, 0, top, left, bottom - top);
+  }
+
   private attachCropBehavior(): void {
     const cropButton = this.editor.ui?._buttonElements?.crop as HTMLElement | undefined;
     const menu = cropButton?.parentElement;
     if (!cropButton || !menu || this.cropMenuCleanup) return;
+    const canvas = this.editor?._graphics?.getCanvas?.();
+    if (!canvas) return;
+
+    const nativeCrop = this.editor.crop?.bind(this.editor);
+    if (nativeCrop && !this.editor.__creationCropPatched) {
+      this.editor.__creationCropPatched = true;
+      this.editor.crop = (...args: any[]): Promise<any> => {
+        const canvas = this.editor?._graphics?.getCanvas?.();
+        const previousViewport = Array.isArray(canvas?.viewportTransform)
+          ? [...canvas.viewportTransform]
+          : [1, 0, 0, 1, 0, 0];
+
+        // Fabric's cropped export applies the current viewport transform to
+        // the output. Generate the crop in image coordinates, then let the
+        // workspace fit the newly loaded image back into the editor.
+        canvas?.setViewportTransform?.([1, 0, 0, 1, 0, 0]);
+        let cropPromise: Promise<any>;
+        try {
+          cropPromise = Promise.resolve(nativeCrop(...args));
+        } catch (error) {
+          canvas?.setViewportTransform?.(previousViewport);
+          return Promise.reject(error);
+        }
+
+        return cropPromise.then((result) => {
+          this.cropActive = false;
+          this.hideCropMask();
+          // TUI replaces the source image and resizes the backing canvas during
+          // crop. Refit after its menu transition so the old viewport transform
+          // cannot leave the new image displaced or visually stretched.
+          window.setTimeout(() => {
+            const nextCanvas = this.editor?._graphics?.getCanvas?.();
+            const image = nextCanvas?.backgroundImage;
+            image?.set({ left: 0, top: 0, scaleX: 1, scaleY: 1 });
+            image?.setCoords?.();
+            this.workspaceCanvasExpanded = false;
+            this.expandCanvasToWorkspace();
+          });
+          return result;
+        }, (error) => {
+          canvas?.setViewportTransform?.(previousViewport);
+          return Promise.reject(error);
+        });
+      };
+    }
 
     const onCropMenuClick = (): void => {
-      // TUI switches drawing mode in its own click handler. Keep the crop
-      // surface unselected until the user draws a crop region.
+      // TUI switches drawing mode in its own click handler. Leave the cropzone
+      // empty so the user can draw a selection anywhere on the canvas.
       window.setTimeout(() => {
         this.cropActive = this.editor.getDrawingMode?.() === 'CROPPER';
-        if (this.cropActive) this.patchCropzoneOverlayBounds();
+        if (this.cropActive) {
+          this.expandCanvasToWorkspace();
+          this.patchCropzoneOverlayBounds();
+          this.prepareCropzoneForDrawing();
+          this.showCropMask();
+        }
       });
     };
+
+    const revealCropzoneAfterDrawing = (): void => {
+      if (!this.cropActive) return;
+      window.setTimeout(() => {
+        const cropzone = this.editor?._graphics?.getComponent?.('CROPPER')?._cropzone;
+        if (!this.cropActive || !cropzone || !this.isCropzoneInViewport(cropzone, canvas)) return;
+        cropzone.set({ evented: true, selectable: true, visible: true });
+        cropzone.setCoords?.();
+        canvas.setActiveObject?.(cropzone);
+        canvas.requestRenderAll?.();
+        this.syncCropMask();
+      });
+    };
+
+    const onCropCanvasMouseDown = (event: any): void => {
+      if (!this.cropActive || event?.target) return;
+      revealCropzoneAfterDrawing();
+    };
+    const onCropCanvasMouseMove = (): void => revealCropzoneAfterDrawing();
+    const syncCropMaskOnCropzoneChange = (event: any): void => {
+      if (!this.cropActive || event?.target?.type !== 'cropzone') return;
+      this.syncCropMask();
+    };
+    canvas.on('mouse:down', onCropCanvasMouseDown);
+    canvas.on('mouse:move', onCropCanvasMouseMove);
+    canvas.on('object:moving', syncCropMaskOnCropzoneChange);
+    canvas.on('object:scaling', syncCropMaskOnCropzoneChange);
+    canvas.on('object:modified', syncCropMaskOnCropzoneChange);
 
     const onOtherMenuClick = (event: MouseEvent): void => {
       const target = event.target instanceof Element
@@ -363,20 +1090,56 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
       this.exitCropMode();
     };
 
+    const onCropPresetClick = (event: MouseEvent): void => {
+      const target = event.target instanceof Element
+        ? event.target.closest<HTMLElement>('.tie-crop-preset-button .preset')
+        : null;
+      if (!target) return;
+
+      window.setTimeout(() => {
+        if (!this.cropActive) return;
+        if (target.classList.contains('preset-none')) {
+          this.prepareCropzoneForDrawing();
+          return;
+        }
+
+        this.constrainCropzoneToCanvas();
+      });
+    };
+
+    const cancelButton = this.editorHost.nativeElement.querySelector<HTMLElement>('.tui-image-editor-menu-crop .tie-crop-button.action .cancel');
+    const onCropCancelClick = (): void => {
+      // Let TUI finish its native cancel handler, then clear the custom crop
+      // state so the mask and cropzone cannot survive the menu transition.
+      window.setTimeout(() => this.exitCropMode());
+    };
+
     cropButton.addEventListener('click', onCropMenuClick);
     menu.addEventListener('click', onOtherMenuClick, true);
+    this.editorHost.nativeElement.addEventListener('click', onCropPresetClick);
+    cancelButton?.addEventListener('click', onCropCancelClick);
     this.cropMenuCleanup = () => {
       cropButton.removeEventListener('click', onCropMenuClick);
       menu.removeEventListener('click', onOtherMenuClick, true);
+      this.editorHost.nativeElement.removeEventListener('click', onCropPresetClick);
+      cancelButton?.removeEventListener('click', onCropCancelClick);
+      canvas.off('mouse:down', onCropCanvasMouseDown);
+      canvas.off('mouse:move', onCropCanvasMouseMove);
+      canvas.off('object:moving', syncCropMaskOnCropzoneChange);
+      canvas.off('object:scaling', syncCropMaskOnCropzoneChange);
+      canvas.off('object:modified', syncCropMaskOnCropzoneChange);
     };
   }
 
   private exitCropMode(): void {
-    if (!this.cropActive && this.editor.getDrawingMode?.() !== 'CROPPER') return;
-
-    this.editor.stopDrawingMode?.();
+    const canvas = this.editor?._graphics?.getCanvas?.();
+    const activeObject = canvas?.getActiveObject?.();
+    const isCropMode = this.cropActive || this.editor.getDrawingMode?.() === 'CROPPER';
+    this.hideCropMask();
+    if (isCropMode) this.editor.stopDrawingMode?.();
     this.cropActive = false;
-    this.editor._graphics?.getCanvas?.()?.requestRenderAll?.();
+    if (activeObject?.type === 'cropzone') canvas.discardActiveObject?.();
+    canvas?.requestRenderAll?.();
   }
 
   private attachTextBehavior(): void {
@@ -444,11 +1207,88 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
     canvas?.requestRenderAll?.();
   }
 
+  private exitTextMode(): void {
+    this.leaveTextMode();
+    const drawingMode = this.editor?.getDrawingMode?.() ?? this.editor?._graphics?.getDrawingMode?.();
+    if (drawingMode === 'TEXT') this.editor?.stopDrawingMode?.();
+  }
+
+  private getCropViewportBounds(canvas: any): {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+    right: number;
+    bottom: number;
+  } {
+    const viewport = canvas?.viewportTransform || [1, 0, 0, 1, 0, 0];
+    const scaleX = Math.abs(Number(viewport[0])) || 1;
+    const scaleY = Math.abs(Number(viewport[3])) || 1;
+    const offsetX = Number(viewport[4]) || 0;
+    const offsetY = Number(viewport[5]) || 0;
+    const left = -offsetX / scaleX;
+    const top = -offsetY / scaleY;
+    const width = Math.max(1, Number(canvas?.getWidth?.()) || 1) / scaleX;
+    const height = Math.max(1, Number(canvas?.getHeight?.()) || 1) / scaleY;
+    return {
+      left,
+      top,
+      width,
+      height,
+      right: left + width,
+      bottom: top + height,
+    };
+  }
+
+  private isCropzoneInViewport(cropzone: any, canvas: any): boolean {
+    const bounds = this.getCropViewportBounds(canvas);
+    const left = Number(cropzone?.left);
+    const top = Number(cropzone?.top);
+    const width = Math.abs(Number(cropzone?.width) || 0) * Math.abs(Number(cropzone?.scaleX) || 1);
+    const height = Math.abs(Number(cropzone?.height) || 0) * Math.abs(Number(cropzone?.scaleY) || 1);
+    return Number.isFinite(left)
+      && Number.isFinite(top)
+      && width > 1
+      && height > 1
+      && left >= bounds.left - 0.01
+      && top >= bounds.top - 0.01
+      && left + width <= bounds.right + 0.01
+      && top + height <= bounds.bottom + 0.01;
+  }
+
+  private prepareCropzoneForDrawing(): void {
+    const canvas = this.editor?._graphics?.getCanvas?.();
+    const cropzone = this.editor?._graphics?.getComponent?.('CROPPER')?._cropzone;
+    if (!canvas || !cropzone) return;
+
+    // Keep an invalid cropzone outside the canvas so TUI can render its full
+    // dark mask, while the next pointer down still starts a new selection.
+    const bounds = this.getCropViewportBounds(canvas);
+    cropzone.set({
+      left: bounds.left - 10,
+      top: bounds.top - 10,
+      width: 1,
+      height: 1,
+      scaleX: 1,
+      scaleY: 1,
+      presetRatio: null,
+      visible: true,
+      evented: false,
+      selectable: false,
+    });
+    cropzone.setCoords?.();
+    canvas.discardActiveObject?.();
+    canvas.selection = false;
+    canvas.requestRenderAll?.();
+    this.showCropMask();
+  }
+
   private patchCropzoneOverlayBounds(): void {
     const graphics = this.editor?._graphics;
     const canvas = graphics?.getCanvas?.();
+    const cropper = graphics?.getComponent?.('CROPPER');
     const cropzone = graphics?.getComponent?.('CROPPER')?._cropzone;
-    if (!canvas || !cropzone || cropzone.__creationOverlayPatched) return;
+    if (!canvas || !cropper || !cropzone || cropzone.__creationOverlayPatched) return;
 
     // The workspace uses a centered viewport transform, while TUI's cropper
     // calculates its outer mask from the untransformed canvas origin.
@@ -472,8 +1312,137 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
         y: [visibleTop - centerY, -halfHeight, halfHeight, visibleBottom - centerY].map(Math.ceil),
       };
     };
+    if (!cropper.__creationDrawingPatched) {
+      // TUI clamps a new drag to canvas coordinates starting at (0, 0). The
+      // visible workspace can extend beyond that range after fitting/zooming,
+      // so use the current viewport as the drawing coordinate space instead.
+      cropper._calcRectDimensionFromPoint = (x: number, y: number, presetRatio: number | null = null): {
+        left: number;
+        top: number;
+        width: number;
+        height: number;
+      } => {
+        const bounds = this.getCropViewportBounds(canvas);
+        const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
+        const startX = clamp(Number(cropper._startX) || bounds.left, bounds.left, bounds.right);
+        const startY = clamp(Number(cropper._startY) || bounds.top, bounds.top, bounds.bottom);
+        const endX = clamp(x, bounds.left, bounds.right);
+        const endY = clamp(y, bounds.top, bounds.bottom);
+        let left = Math.min(endX, startX);
+        let top = Math.min(endY, startY);
+        let width = Math.abs(endX - startX);
+        let height = Math.abs(endY - startY);
+
+        if (cropper._withShiftKey && !presetRatio) {
+          const size = Math.min(Math.max(width, height), bounds.right - left, bounds.bottom - top);
+          width = size;
+          height = size;
+          left = endX <= startX ? Math.max(bounds.left, startX - size) : startX;
+          top = endY <= startY ? Math.max(bounds.top, startY - size) : startY;
+        } else if (presetRatio) {
+          height = width / presetRatio;
+          if (startX >= endX) left = clamp(startX - width, bounds.left, bounds.right);
+          if (startY >= endY) top = clamp(startY - height, bounds.top, bounds.bottom);
+
+          if (top + height > bounds.bottom) {
+            height = bounds.bottom - top;
+            width = height * presetRatio;
+            if (startX >= endX) left = clamp(startX - width, bounds.left, bounds.right);
+          }
+          if (left + width > bounds.right) {
+            width = bounds.right - left;
+            height = width / presetRatio;
+            if (startY >= endY) top = clamp(startY - height, bounds.top, bounds.bottom);
+          }
+        }
+
+        return { left, top, width, height };
+      };
+      cropper.__creationDrawingPatched = true;
+    }
+    if (!cropzone.__creationValidityPatched) {
+      cropzone.isValid = (): boolean => this.isCropzoneInViewport(cropzone, canvas);
+      cropzone.__creationValidityPatched = true;
+    }
+    if (!cropzone.__creationResizePatched) {
+      // TUI's cropzone resize math reads getBoundingRect(), which includes the
+      // viewport transform. Its pointer is already restored to canvas space,
+      // so using that transformed rect makes the opposite corner drift.
+      cropzone._getCropzoneRectInfo = (): {
+        rectTop: number;
+        rectLeft: number;
+        rectWidth: number;
+        rectHeight: number;
+        rectRight: number;
+        rectBottom: number;
+        canvasWidth: number;
+        canvasHeight: number;
+      } => {
+        const scaleX = Math.abs(Number(cropzone.scaleX) || 1);
+        const scaleY = Math.abs(Number(cropzone.scaleY) || 1);
+        const rectLeft = Number(cropzone.left) || 0;
+        const rectTop = Number(cropzone.top) || 0;
+        const rectWidth = Math.abs(Number(cropzone.width) || 0) * scaleX;
+        const rectHeight = Math.abs(Number(cropzone.height) || 0) * scaleY;
+        const canvasBounds = this.getCropViewportBounds(canvas);
+
+        return {
+          rectTop,
+          rectLeft,
+          rectWidth,
+          rectHeight,
+          rectRight: rectLeft + rectWidth,
+          rectBottom: rectTop + rectHeight,
+          canvasWidth: canvasBounds.right,
+          canvasHeight: canvasBounds.bottom,
+        };
+      };
+      cropzone.__creationResizePatched = true;
+    }
+    if (!cropzone.__creationMovementPatched) {
+      cropzone._onMoving = (): void => {
+        const canvasBounds = this.getCropViewportBounds(canvas);
+        const width = Math.abs(Number(cropzone.width) || 0) * Math.abs(Number(cropzone.scaleX) || 1);
+        const height = Math.abs(Number(cropzone.height) || 0) * Math.abs(Number(cropzone.scaleY) || 1);
+        const maxLeft = Math.max(canvasBounds.left, canvasBounds.right - width);
+        const maxTop = Math.max(canvasBounds.top, canvasBounds.bottom - height);
+
+        cropzone.left = Math.min(maxLeft, Math.max(canvasBounds.left, Number(cropzone.left) || 0));
+        cropzone.top = Math.min(maxTop, Math.max(canvasBounds.top, Number(cropzone.top) || 0));
+        cropzone.canvasEventTrigger?.objectMoved?.(cropzone);
+      };
+      cropzone.__creationMovementPatched = true;
+    }
     cropzone.__creationOverlayPatched = true;
     canvas.requestRenderAll?.();
+  }
+
+  private constrainCropzoneToCanvas(): void {
+    const canvas = this.editor?._graphics?.getCanvas?.();
+    const cropzone = this.editor?._graphics?.getComponent?.('CROPPER')?._cropzone;
+    if (!canvas || !cropzone) return;
+
+    const canvasBounds = this.getCropViewportBounds(canvas);
+    const ratio = Math.max(0.0001, Math.abs(Number(cropzone.width) || 0) / Math.max(0.0001, Math.abs(Number(cropzone.height) || 0)));
+    let width = canvasBounds.width;
+    let height = width / ratio;
+    if (height > canvasBounds.height) {
+      height = canvasBounds.height;
+      width = height * ratio;
+    }
+
+    cropzone.set({
+      left: canvasBounds.left + (canvasBounds.width - width) / 2,
+      top: canvasBounds.top + (canvasBounds.height - height) / 2,
+      width,
+      height,
+      scaleX: 1,
+      scaleY: 1,
+    });
+    cropzone.setCoords?.();
+    canvas.setActiveObject(cropzone);
+    canvas.requestRenderAll?.();
+    this.syncCropMask();
   }
 
   private getActiveObject(): any | null {
@@ -487,6 +1456,15 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
     const canvas = this.editor?._graphics?.getCanvas?.();
     if (target?.type !== 'image' || !canvas?.getObjects?.().includes(target)) return null;
     return target;
+  }
+
+  private getFirstVisibleImageObject(): any | null {
+    const canvas = this.editor?._graphics?.getCanvas?.();
+    return canvas?.getObjects?.().find((object: any) => (
+      object?.type === 'image'
+      && object.visible !== false
+      && Number(object.opacity ?? 1) > 0
+    )) ?? null;
   }
 
   private attachImageProcessingBehavior(): void {
@@ -607,6 +1585,7 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
         canvas.requestRenderAll?.();
         this.emitSelectedImage(target);
         this.emitDocumentSnapshot();
+        this.scheduleExperimentalMinimapRefresh('full');
         return value;
       },
       (error) => {
@@ -685,17 +1664,12 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
   }
 
   private getResizeTarget(): any | null {
-    const activeObject = this.getActiveObject();
-    if (!activeObject) return null;
-    if (!this.resizeSession || this.resizeSession.target !== activeObject) {
-      this.beginResizeSession(activeObject);
-    }
-    return activeObject;
+    return this.getImageProcessingTarget();
   }
 
   private getResizeDimensions(): { width: number; height: number } {
     const target = this.getResizeTarget();
-    if (!target) return this.nativeResizeActions.getCurrentDimensions();
+    if (!target) return { width: 0, height: 0 };
 
     return {
       width: this.getScaledObjectDimension(target, 'width', 'scaleX'),
@@ -711,10 +1685,7 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
 
   private previewResize(actor: 'width' | 'height', value: number, lockState: boolean): void {
     const target = this.getResizeTarget();
-    if (!target) {
-      this.nativeResizeActions.preview(actor, value, lockState);
-      return;
-    }
+    if (!target || !this.resizeSession) return;
 
     const currentDimensions = this.getResizeDimensions();
     const aspectRatio = currentDimensions.width / currentDimensions.height;
@@ -736,10 +1707,7 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
 
   private updateResizeLimits(lockState: boolean, min: number, max: number): void {
     const target = this.getResizeTarget();
-    if (!target) {
-      this.nativeResizeActions.lockAspectRatio(lockState, min, max);
-      return;
-    }
+    if (!target || !this.resizeSession) return;
 
     if (!lockState) {
       this.editor.ui.resize.setLimit({ minWidth: min, minHeight: min, maxWidth: max, maxHeight: max });
@@ -780,10 +1748,10 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
     }
 
     if (!this.resizeSession) {
-      this.nativeResizeActions.reset(standByMode);
-      // TUI resets the backstore using the current zoom. Restore the full
-      // workspace canvas after its asynchronous resize has completed.
-      window.setTimeout(() => this.expandCanvasToWorkspace());
+      if (!standByMode) {
+        this.skipResizeReset = true;
+        this.editor.ui.changeMenu('resize', true, false);
+      }
       return;
     }
 
@@ -797,10 +1765,7 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
 
   private async commitResize(): Promise<void> {
     const target = this.getResizeTarget();
-    if (!target || !this.resizeSession) {
-      this.nativeResizeActions.resize();
-      return;
-    }
+    if (!target || !this.resizeSession) return;
 
     const currentDimensions = this.getResizeDimensions();
     const baseWidth = Number(target.width) || 1;
@@ -821,24 +1786,31 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
     this.skipResizeReset = true;
     this.editor.ui.changeMenu('resize', true, false);
     this.statusChange.emit('Image resized.');
+    this.scheduleExperimentalMinimapRefresh('full');
   }
 
   private syncResizePanel(): void {
     if (this.editor.ui?.submenu !== 'resize' || !this.editor.ui.resize) return;
-    const dimensions = this.getResizeDimensions();
-    this.editor.ui.resize.setWidthValue(dimensions.width);
-    this.editor.ui.resize.setHeightValue(dimensions.height);
-    this.updateResizePanelHint();
+    const target = this.getResizeTarget();
+    if (target) {
+      const dimensions = this.getResizeDimensions();
+      this.beginResizeSession(target);
+      this.editor.ui.resize.setWidthValue(dimensions.width);
+      this.editor.ui.resize.setHeightValue(dimensions.height);
+      this.editor.ui.resize._lockState = false;
+      this.editor.ui.resize.setLimit({ minWidth: 32, minHeight: 32, maxWidth: 4088, maxHeight: 4088 });
+    } else {
+      this.resizeSession = undefined;
+    }
+    this.updateResizePanelHint(Boolean(target));
     const lockInput = this.editorHost.nativeElement.querySelector<HTMLInputElement>('.tie-lock-aspect-ratio');
-    if (lockInput) lockInput.checked = false;
-    this.editor.ui.resize._lockState = false;
-    this.editor.ui.resize.setLimit({ minWidth: 32, minHeight: 32, maxWidth: 4088, maxHeight: 4088 });
+    if (lockInput) {
+      lockInput.closest('li')?.remove();
+    }
   }
 
-  private updateResizePanelHint(): void {
-    const resizePanel = Array.from(
-      this.editorHost.nativeElement.querySelectorAll<HTMLElement>('.tui-image-editor-submenu > .tui-image-editor-menu-resize')
-    ).find((panel) => getComputedStyle(panel).display !== 'none');
+  private updateResizePanelHint(hasTarget: boolean): void {
+    const resizePanel = this.getResizePanel();
     const submenuItem = resizePanel?.querySelector<HTMLElement>(':scope > .tui-image-editor-submenu-item');
     if (!submenuItem) return;
 
@@ -852,13 +1824,35 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
       submenuItem.prepend(hint);
     }
 
-    const hasSelectedImage = Boolean(this.getActiveObject());
     const title = hint.querySelector('strong');
     const description = hint.querySelector('span');
-    if (title) title.textContent = hasSelectedImage ? 'Image size' : 'Canvas size';
-    if (description) description.textContent = hasSelectedImage
-      ? 'Width and height control the selected image.'
-      : 'Width and height control the canvas.';
+    if (title) title.textContent = 'Image size';
+    if (description) {
+      description.textContent = hasTarget
+        ? 'Width and height control the selected image.'
+        : 'Select an image on the canvas to edit width and height.';
+    }
+
+    Array.from(submenuItem.children).forEach((child) => {
+      if (!(child instanceof HTMLElement)) return;
+      if (child.classList.contains('creation-resize-hint') || child.classList.contains('tie-resize-button')) return;
+      child.style.display = hasTarget ? '' : 'none';
+      child.style.pointerEvents = hasTarget ? '' : 'none';
+      child.setAttribute('aria-hidden', String(!hasTarget));
+    });
+
+    const applyButton = submenuItem.querySelector<HTMLButtonElement>('.tie-resize-button .apply');
+    if (applyButton) applyButton.disabled = !hasTarget;
+    submenuItem.querySelectorAll<HTMLInputElement>('.tie-width-range-value, .tie-height-range-value').forEach((input) => {
+      input.disabled = !hasTarget;
+    });
+    this.editor.ui.resize.changeApplyButtonStatus(false);
+  }
+
+  private getResizePanel(): HTMLElement | null {
+    return Array.from(
+      this.editorHost.nativeElement.querySelectorAll<HTMLElement>('.tui-image-editor-submenu > .tui-image-editor-menu-resize')
+    ).find((panel) => getComputedStyle(panel).display !== 'none') || null;
   }
 
   private updateImageProcessingPanelHints(): void {
@@ -934,6 +1928,19 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
     this.workspaceResizeObserver.observe(workspace);
   }
 
+  private attachMenuLayoutBehavior(): void {
+    const menu = this.editorHost.nativeElement.querySelector<HTMLElement>('.tui-image-editor-menu');
+    if (!menu || this.menuLayoutCleanup) return;
+
+    const onMenuClick = (): void => {
+      // TUI updates its menu classes after the click handler. Re-center after
+      // that update so a closed submenu cannot leave a stale viewport behind.
+      window.setTimeout(() => this.expandCanvasToWorkspace());
+    };
+    menu.addEventListener('click', onMenuClick);
+    this.menuLayoutCleanup = () => menu.removeEventListener('click', onMenuClick);
+  }
+
   private expandCanvasToWorkspace(): void {
     const canvas = this.editor?._graphics?.getCanvas?.();
     const image = canvas?.backgroundImage;
@@ -949,6 +1956,9 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
     const currentZoom = this.workspaceCanvasExpanded ? Number(canvas.getZoom?.()) || 1 : 1;
     this.workspaceZoomBase = Math.min(maxWidth / image.width, maxHeight / image.height, width / image.width, height / image.height) * this.defaultImageFitFactor;
     const contentScale = Math.min(currentZoom, this.workspaceZoomBase);
+    const contentWidth = image.width * contentScale;
+    const availableSideMargin = Math.max(0, (width - contentWidth) / 2);
+    const contentOffsetX = Math.min(WORKSPACE_CONTENT_OFFSET_X, availableSideMargin);
 
     canvas.setDimensions({ width, height });
     canvas.setDimensions({ width, height }, { cssOnly: true });
@@ -957,12 +1967,14 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
       0,
       0,
       contentScale,
-      (width - image.width * contentScale) / 2,
+      (width - contentWidth) / 2 + contentOffsetX,
       (height - image.height * contentScale) / 2
     ]);
     canvas.calcOffset?.();
     canvas.requestRenderAll?.();
     this.workspaceCanvasExpanded = true;
+    if (this.cropActive) this.syncCropMask();
+    this.scheduleExperimentalMinimapRefresh('viewport');
   }
 
   private attachHelpMenuActions(): void {
@@ -992,7 +2004,7 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
       if (!target.classList.contains('tie-btn-zoomIn') && !target.classList.contains('tie-btn-zoomOut')) return;
       event.preventDefault();
       event.stopImmediatePropagation();
-      this.zoomCanvas(target.classList.contains('tie-btn-zoomIn') ? 1.25 : 0.8);
+      void this.zoomCanvas(target.classList.contains('tie-btn-zoomIn') ? 1.25 : 0.8);
     };
 
     helpMenu.addEventListener('click', onHelpMenuClick, true);
@@ -1011,21 +2023,30 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
     };
   }
 
-  private zoomCanvas(factor: number): void {
+  private setCanvasZoom(zoomLevel: number, origin?: { x: number; y: number }, announce = true): boolean {
+    const canvas = this.editor?._graphics?.getCanvas?.();
+    if (!canvas) return false;
+
+    const currentZoom = Number(canvas.getZoom?.()) || this.workspaceZoomBase || 1;
+    const minimumZoom = Math.max(0.05, this.workspaceZoomBase * 0.5);
+    const nextZoom = Math.min(5, Math.max(minimumZoom, zoomLevel));
+    if (Math.abs(nextZoom - currentZoom) < 0.001) return false;
+
+    canvas.zoomToPoint(origin ?? { x: canvas.getWidth() / 2, y: canvas.getHeight() / 2 }, nextZoom);
+    canvas.calcOffset?.();
+    canvas.requestRenderAll?.();
+    if (this.cropActive) this.syncCropMask();
+    if (announce) this.statusChange.emit(`Zoom ${Math.round((nextZoom / this.workspaceZoomBase) * 100)}%.`);
+    this.scheduleExperimentalMinimapRefresh('viewport');
+    return true;
+  }
+
+  private zoomCanvas(factor: number, origin?: { x: number; y: number }, announce = true): void {
     const canvas = this.editor?._graphics?.getCanvas?.();
     if (!canvas) return;
 
-    const currentZoom = Number(canvas.getZoom?.()) || this.workspaceZoomBase;
-    const minimumZoom = this.workspaceZoomBase * 0.5;
-    const nextZoom = factor > 1
-      ? Math.min(5, currentZoom * factor)
-      : Math.max(minimumZoom, currentZoom * factor);
-    if (Math.abs(nextZoom - currentZoom) < 0.001) return;
-
-    canvas.zoomToPoint({ x: canvas.getWidth() / 2, y: canvas.getHeight() / 2 }, nextZoom);
-    canvas.calcOffset?.();
-    canvas.requestRenderAll?.();
-    this.statusChange.emit(`Zoom ${Math.round((nextZoom / this.workspaceZoomBase) * 100)}%.`);
+    const currentZoom = Number(canvas.getZoom?.()) || this.workspaceZoomBase || 1;
+    void this.setCanvasZoom(currentZoom * factor, origin, announce);
   }
 
   private attachCanvasPan(): void {
@@ -1033,10 +2054,14 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
     const workspace = this.editorHost.nativeElement.querySelector<HTMLElement>('.tui-image-editor-main-container');
     if (!canvas || !workspace) return;
 
+    const canvasElement = canvas.upperCanvasEl as HTMLElement | undefined;
     let isPanning = false;
     let previousPoint = { x: 0, y: 0 };
     let drawingClickCandidate = false;
     let drawingPointerStart = { x: 0, y: 0 };
+    let pinchSession: { startDistance: number; startZoom: number; lastZoom: number } | null = null;
+    let isTouchPanning = false;
+    const touchPointers = new Map<number, { x: number; y: number }>();
     const canvasContainerSelector = '.tui-image-editor-canvas-container';
     const chromeSelector = '.tui-image-editor-controls, .tui-image-editor-help-menu, .tui-image-editor-submenu';
 
@@ -1045,15 +2070,63 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
       canvas.viewportTransform[4] += deltaX;
       canvas.viewportTransform[5] += deltaY;
       canvas.requestRenderAll?.();
+      if (this.cropActive) this.syncCropMask();
+      this.scheduleExperimentalMinimapRefresh('viewport');
+    };
+    const zoomPercentLabel = (zoomValue: number): string => `Zoom ${Math.round((zoomValue / (this.workspaceZoomBase || 1)) * 100)}%.`;
+    const clampZoom = (value: number): number => Math.min(5, Math.max(Math.max(0.05, this.workspaceZoomBase * 0.5), value));
+    const toCanvasPoint = (clientX: number, clientY: number): { x: number; y: number } => {
+      const target = canvasElement || workspace;
+      return canvas.getPointer({ clientX, clientY, target } as any);
+    };
+    const startPinch = (): void => {
+      if (touchPointers.size !== 2) return;
+      const [firstPoint, secondPoint] = Array.from(touchPointers.values());
+      const startDistance = Math.max(1, Math.hypot(secondPoint.x - firstPoint.x, secondPoint.y - firstPoint.y));
+      const startZoom = Number(canvas.getZoom?.()) || this.workspaceZoomBase || 1;
+      pinchSession = { startDistance, startZoom, lastZoom: startZoom };
+    };
+    const updatePinch = (): void => {
+      if (!pinchSession || touchPointers.size !== 2) return;
+      const [firstPoint, secondPoint] = Array.from(touchPointers.values());
+      const currentDistance = Math.max(1, Math.hypot(secondPoint.x - firstPoint.x, secondPoint.y - firstPoint.y));
+      const currentCenter = {
+        x: (firstPoint.x + secondPoint.x) / 2,
+        y: (firstPoint.y + secondPoint.y) / 2,
+      };
+      const nextZoom = clampZoom(pinchSession.startZoom * (currentDistance / pinchSession.startDistance));
+      pinchSession.lastZoom = nextZoom;
+      void this.setCanvasZoom(nextZoom, toCanvasPoint(currentCenter.x, currentCenter.y), false);
+    };
+    const stopPinch = (): void => {
+      if (!pinchSession || touchPointers.size >= 2) return;
+      const finalZoom = pinchSession.lastZoom;
+      const startZoom = pinchSession.startZoom;
+      pinchSession = null;
+      if (Math.abs(finalZoom - startZoom) < 0.001) return;
+      this.statusChange.emit(zoomPercentLabel(finalZoom));
     };
     const isCanvasInteractionModeActive = (): boolean => {
       const drawingMode = this.editor.getDrawingMode?.() ?? this.editor._graphics?.getDrawingMode?.();
       return ['CROPPER', 'FREE_DRAWING', 'LINE_DRAWING', 'SHAPE', 'TEXT', 'ICON', 'ZOOM'].includes(drawingMode);
     };
+    const isTouchPointer = (event: any): boolean => Boolean(
+      event?.pointerType === 'touch' || event?.touches?.length || event?.changedTouches?.length
+    );
+
+    if (canvasElement) {
+      canvasElement.style.touchAction = 'none';
+      canvasElement.style.overscrollBehavior = 'contain';
+    }
 
     canvas.defaultCursor = 'grab';
 
     canvas.on('mouse:down', (event: any) => {
+      if (touchPointers.size > 0 || pinchSession) return;
+      if (isTouchPointer(event.e)) {
+        isPanning = false;
+        return;
+      }
       const drawingMode = this.editor.getDrawingMode?.() ?? this.editor._graphics?.getDrawingMode?.();
       // TUI also creates a new drawing when the pointer starts on an existing
       // object, so an event target must not disqualify a single-click draw.
@@ -1067,9 +2140,18 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
       canvas.defaultCursor = 'grabbing';
     });
     canvas.on('mouse:move', (event: any) => {
+      if (isTouchPointer(event.e)) {
+        isPanning = false;
+        return;
+      }
+      if (pinchSession) return;
       if (drawingClickCandidate && event.e) {
         const distance = Math.hypot(event.e.clientX - drawingPointerStart.x, event.e.clientY - drawingPointerStart.y);
         if (distance > 4) drawingClickCandidate = false;
+      }
+      if (touchPointers.size > 0 || pinchSession) {
+        isPanning = false;
+        return;
       }
       if (isCanvasInteractionModeActive()) {
         isPanning = false;
@@ -1081,6 +2163,7 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
       previousPoint = nextPoint;
     });
     canvas.on('mouse:up', () => {
+      if (touchPointers.size > 0 || pinchSession) return;
       const shouldUseDefaultDrawingSize = drawingClickCandidate;
       drawingClickCandidate = false;
       isPanning = false;
@@ -1090,7 +2173,49 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
       window.setTimeout(() => this.normalizeClickCreatedObject(shouldUseDefaultDrawingSize));
     });
 
+    const onCanvasPointerDown = (event: PointerEvent): void => {
+      if (event.pointerType !== 'touch' || !canvasElement) return;
+      touchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      canvasElement.setPointerCapture?.(event.pointerId);
+      if (touchPointers.size === 1) {
+        const target = typeof canvas.findTarget === 'function' ? canvas.findTarget(event, false) : null;
+        isTouchPanning = !isCanvasInteractionModeActive() && !target;
+        previousPoint = { x: event.clientX, y: event.clientY };
+      }
+      if (touchPointers.size === 2) {
+        isTouchPanning = false;
+        startPinch();
+      }
+    };
+    const onCanvasPointerMove = (event: PointerEvent): void => {
+      if (event.pointerType !== 'touch' || !touchPointers.has(event.pointerId)) return;
+      touchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (!pinchSession && touchPointers.size === 2) startPinch();
+      if (!pinchSession && touchPointers.size === 1 && isTouchPanning && !isCanvasInteractionModeActive()) {
+        panViewport(event.clientX - previousPoint.x, event.clientY - previousPoint.y);
+        previousPoint = { x: event.clientX, y: event.clientY };
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      if (!pinchSession) return;
+      event.preventDefault();
+      event.stopPropagation();
+      updatePinch();
+      isPanning = false;
+      canvas.defaultCursor = 'grab';
+    };
+    const onCanvasPointerUp = (event: PointerEvent): void => {
+      if (event.pointerType !== 'touch' || !touchPointers.has(event.pointerId)) return;
+      touchPointers.delete(event.pointerId);
+      if (touchPointers.size === 0) isTouchPanning = false;
+      isPanning = false;
+      canvasElement?.releasePointerCapture?.(event.pointerId);
+      stopPinch();
+    };
+
     const onWorkspacePointerDown = (event: PointerEvent): void => {
+      if (event.pointerType === 'touch') return;
       const target = event.target instanceof Element ? event.target : null;
       if (target?.closest(chromeSelector) || target?.closest(canvasContainerSelector)) return;
       isPanning = true;
@@ -1111,16 +2236,35 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
       workspace.releasePointerCapture?.(event.pointerId);
       workspace.style.cursor = '';
     };
+    const onWorkspaceWheel = (event: WheelEvent): void => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest(chromeSelector) || touchPointers.size > 0 || pinchSession || isCanvasInteractionModeActive()) return;
+      if (!event.deltaY) return;
+
+      event.preventDefault();
+      const factor = event.deltaY < 0 ? 1.08 : 1 / 1.08;
+      this.zoomCanvas(factor, toCanvasPoint(event.clientX, event.clientY), false);
+    };
 
     workspace.addEventListener('pointerdown', onWorkspacePointerDown);
     workspace.addEventListener('pointermove', onWorkspacePointerMove);
     workspace.addEventListener('pointerup', stopWorkspacePan);
     workspace.addEventListener('pointercancel', stopWorkspacePan);
+    workspace.addEventListener('wheel', onWorkspaceWheel, { passive: false });
+    canvasElement?.addEventListener('pointerdown', onCanvasPointerDown, true);
+    canvasElement?.addEventListener('pointermove', onCanvasPointerMove, true);
+    canvasElement?.addEventListener('pointerup', onCanvasPointerUp, true);
+    canvasElement?.addEventListener('pointercancel', onCanvasPointerUp, true);
     this.canvasPanCleanup = () => {
       workspace.removeEventListener('pointerdown', onWorkspacePointerDown);
       workspace.removeEventListener('pointermove', onWorkspacePointerMove);
       workspace.removeEventListener('pointerup', stopWorkspacePan);
       workspace.removeEventListener('pointercancel', stopWorkspacePan);
+      workspace.removeEventListener('wheel', onWorkspaceWheel);
+      canvasElement?.removeEventListener('pointerdown', onCanvasPointerDown, true);
+      canvasElement?.removeEventListener('pointermove', onCanvasPointerMove, true);
+      canvasElement?.removeEventListener('pointerup', onCanvasPointerUp, true);
+      canvasElement?.removeEventListener('pointercancel', onCanvasPointerUp, true);
     };
   }
 
@@ -1160,6 +2304,12 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
   async handleAction(action: ToolAction): Promise<void> {
     if (!this.editor) return;
     try {
+      // The mobile toolbar closes immediately after a tap. Clear any native
+      // drawing mode before the next command so the hidden TUI overlays cannot
+      // keep intercepting canvas input.
+      if (action !== 'crop') this.exitCropMode();
+      if (action !== 'text') this.exitTextMode();
+
       switch (action) {
         case 'undo':
           await this.editor.undo();
@@ -1180,14 +2330,24 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
           this.statusChange.emit('Text added to canvas.');
           break;
         case 'filter':
-          await this.toggleGrayscale();
+          await this.applyGrayscaleToImage();
           break;
         case 'crop':
           if (!this.cropActive) {
             this.cropActive = this.editor.startDrawingMode('CROPPER');
+            if (this.cropActive) {
+              this.expandCanvasToWorkspace();
+              this.patchCropzoneOverlayBounds();
+              this.prepareCropzoneForDrawing();
+            }
             this.statusChange.emit(this.cropActive ? 'Crop area active. Choose a region, then select Crop again to apply.' : 'Crop mode is unavailable.');
           } else {
-            await this.editor.crop(this.editor.getCropzoneRect());
+            const cropRect = this.editor.getCropzoneRect?.();
+            if (!cropRect || cropRect.width <= 1 || cropRect.height <= 1) {
+              this.statusChange.emit('Choose a crop area first.');
+              break;
+            }
+            await this.editor.crop(cropRect);
             this.exitCropMode();
             this.statusChange.emit('Crop applied.');
           }
@@ -1237,6 +2397,7 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
       this.imageReady = true;
       this.statusChange.emit(successMessage);
       this.emitDocumentSnapshot();
+      this.scheduleExperimentalMinimapRefresh('full');
     } catch {
       this.statusChange.emit('The image could not be added to canvas.');
     }
@@ -1259,10 +2420,28 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
       this.selectedObject = null;
       this.resizeSession = undefined;
       await new Promise<void>((resolve, reject) => {
+        let settled = false;
+        const timeoutId = window.setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          reject(new Error('Saved canvas restore timed out.'));
+        }, DOCUMENT_RESTORE_TIMEOUT_MS);
+
+        const finish = (error?: unknown): void => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timeoutId);
+          if (error) {
+            reject(error);
+          } else {
+            resolve();
+          }
+        };
+
         try {
-          canvas.loadFromJSON(canvasJson, () => resolve());
+          canvas.loadFromJSON(canvasJson, () => finish());
         } catch (error) {
-          reject(error);
+          finish(error);
         }
       });
       canvas.getObjects?.().forEach((object: any) => this.applySelectionStyle(object));
@@ -1276,6 +2455,7 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
       this.grayscaleActive = Boolean(this.editor.hasFilter?.('Grayscale'));
       this.filterChange.emit(this.grayscaleActive);
       this.documentChangesEnabled = true;
+      this.scheduleExperimentalMinimapRefresh('full');
       return true;
     } catch {
       this.documentChangesEnabled = true;
@@ -1337,6 +2517,7 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
       this.imageReady = true;
       this.documentChangesEnabled = true;
       this.ready.emit();
+      this.scheduleExperimentalMinimapRefresh('full');
     } catch {
       this.statusChange.emit('The image could not be loaded.');
     }
@@ -1352,6 +2533,22 @@ export class ImageEditorComponent implements AfterViewInit, OnDestroy {
     this.grayscaleActive = shouldApply;
     this.filterChange.emit(shouldApply);
     this.statusChange.emit(shouldApply ? 'Grayscale applied.' : 'Grayscale removed.');
+  }
+
+  private async applyGrayscaleToImage(): Promise<void> {
+    const canvas = this.editor?._graphics?.getCanvas?.();
+    const target = this.getImageProcessingTarget() ?? this.getFirstVisibleImageObject();
+    if (!canvas || !target) {
+      this.statusChange.emit('Add an image before applying filters.');
+      return;
+    }
+
+    if (this.getImageProcessingTarget() !== target) {
+      canvas.setActiveObject?.(target);
+      this.applySelectionStyle(target);
+      canvas.requestRenderAll?.();
+    }
+    await this.toggleGrayscale();
   }
 
   private syncFilterState(): void {

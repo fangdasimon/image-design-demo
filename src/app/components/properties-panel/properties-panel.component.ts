@@ -23,11 +23,11 @@ export type PropertyAction = 'reset' | 'rotate' | 'grayscale' | 'export';
       <div class="section-heading"><span class="section-label">Quick edits</span><span class="section-index">02</span></div>
       <div class="quick-actions">
         <button class="property-action" mat-stroked-button [class.is-active]="grayscaleActive" [disabled]="!imageReady" [attr.aria-pressed]="grayscaleActive" (click)="action.emit('grayscale')">
-          <span class="action-icon"><mat-icon fontSet="material-symbols-outlined">tonality</mat-icon></span>
+          <span class="action-icon"><mat-icon fontSet="material-symbols-outlined" data-icon="tonality">tonality</mat-icon></span>
           <span class="action-copy"><strong>Grayscale</strong><small>{{ grayscaleActive ? 'On' : 'Off' }}</small></span>
         </button>
         <button class="property-action" mat-stroked-button [disabled]="!imageReady" (click)="action.emit('rotate')">
-          <span class="action-icon"><mat-icon fontSet="material-symbols-outlined">rotate_right</mat-icon></span>
+          <span class="action-icon"><mat-icon fontSet="material-symbols-outlined" data-icon="rotate_right">rotate_right</mat-icon></span>
           <span class="action-copy"><strong>Rotate</strong><small>90° clockwise</small></span>
         </button>
       </div>
@@ -37,8 +37,8 @@ export type PropertyAction = 'reset' | 'rotate' | 'grayscale' | 'export';
       <strong>{{ imageReady ? 'Ready to edit' : 'Upload an image to begin' }}</strong>
     </div>
     <div class="panel-actions">
-      <button class="reset-button" mat-stroked-button [disabled]="!imageReady" (click)="action.emit('reset')"><mat-icon fontSet="material-symbols-outlined">restart_alt</mat-icon><span>Reset</span></button>
-      <button class="export-button" mat-flat-button [disabled]="!imageReady" (click)="action.emit('export')"><mat-icon fontSet="material-symbols-outlined">download</mat-icon><span>Export</span></button>
+      <button class="reset-button" mat-stroked-button [disabled]="!imageReady" (click)="action.emit('reset')"><mat-icon fontSet="material-symbols-outlined" data-icon="restart_alt">restart_alt</mat-icon><span>Reset</span></button>
+      <button class="export-button" mat-flat-button [disabled]="!imageReady" (click)="action.emit('export')"><mat-icon fontSet="material-symbols-outlined" data-icon="download">download</mat-icon><span>Export</span></button>
     </div>
   `,
   styles: [`
@@ -58,7 +58,7 @@ export type PropertyAction = 'reset' | 'rotate' | 'grayscale' | 'export';
     .property-action { min-height: 58px; display: flex; align-items: center; gap: 10px; border-color: var(--line); border-radius: 0; color: var(--ink); font-size: 12px; padding: 8px 10px; text-align: left; }
     .property-action:hover:not([disabled]), .property-action.is-active { border-color: var(--ink); background: var(--primary-grey); }
     .action-icon { display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 auto; background: var(--ink); color: var(--paper); }
-    .action-icon mat-icon { width: 18px; height: 18px; font-size: 18px; }
+    .action-icon mat-icon { --creation-icon-size: 18px; width: 18px; height: 18px; font-size: 18px; }
     .action-copy { display: grid; gap: 3px; }
     .action-copy strong { font-size: 12px; font-weight: 120; }
     .action-copy small { color: var(--muted); font-size: 10px; }
@@ -67,7 +67,7 @@ export type PropertyAction = 'reset' | 'rotate' | 'grayscale' | 'export';
     .panel-actions { display: grid; grid-template-columns: .75fr 1.25fr; gap: 8px; margin-top: auto; }
     .reset-button, .export-button { min-height: 42px; border-radius: 0; font-size: 11px; }
     .reset-button { border-color: var(--line-strong); color: var(--ink); }
-    .reset-button mat-icon, .export-button mat-icon { margin-right: 6px; font-size: 17px; }
+    .reset-button mat-icon, .export-button mat-icon { --creation-icon-size: 17px; margin-right: 6px; font-size: 17px; }
     .export-button { background: var(--ink); color: var(--paper); }
     .export-button:hover:not([disabled]) { background: #272727; }
   `]

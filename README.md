@@ -9,7 +9,7 @@ Chinese guide: [README.zh-CN.md](README.zh-CN.md)
 - Opens with a built-in sample artwork so the canvas is ready immediately.
 - Lets you upload a local image and edit it on the TUI canvas.
 - Supports crop, rotate, text, grayscale, undo, redo, pan, zoom, reset, and PNG export.
-- Supports text-to-image and image-to-image generation, with results inserted into the canvas as new objects.
+- Supports text-to-image and image-to-image generation, with results inserted into the canvas as new objects and available from the top-right AI version history.
 
 ## Submission checklist
 
@@ -63,15 +63,16 @@ Never commit `server/.env` or put `HF_TOKEN` in frontend environment variables.
 
 ### Edit the canvas
 
-- Top bar: upload, undo, redo, and export.
+- Top bar: upload, AI controls, version history, and export. Undo and redo remain available in the editor toolbar and mobile tools.
 - Left toolbar: `resize`, `crop`, `flip`, `rotate`, `draw`, `shape`, `icon`, `text`, `mask`, and `filter`.
 - Right toolbar: zoom, pan, reset, and delete. Select an image to move, resize, or rotate it; the active selection is orange.
+- On narrow screens, open the floating tools button to access upload, crop, text, grayscale, rotate, undo, and redo without covering the canvas.
 
 ### Text-to-image
 
 1. Leave every canvas image unselected.
 2. Enter `A woman in a white dress standing in a bright studio, soft shadows, realistic photography.` in the bottom AI bar and click `Generate`.
-3. The generated image is added to the canvas as a new object.
+3. The generated image is added to the canvas as a new object. Open AI controls in the top-right to inspect the active model and style, then use the AI versions section to favorite, download, or add a previous result to the canvas again.
 
 ### Image-to-image
 
@@ -81,18 +82,15 @@ Never commit `server/.env` or put `HF_TOKEN` in frontend environment variables.
 
 ## Design decisions
 
-- Angular owns the application shell and state, while TUI Image Editor provides the proven canvas editing primitives.
-- AI calls stay behind a server-side proxy so `HF_TOKEN` never reaches browser code or the Git repository.
-- Text-to-image and image-to-image use separate request shapes and configurable Hugging Face models. Selecting a canvas image is the explicit mode switch, so the same prompt bar supports both workflows without adding a second editor.
-- The editor stores the canvas document and AI history locally, which keeps the demo useful after a refresh without requiring an account or database.
-- The UI keeps a monochrome Creation-style surface and uses orange only for active canvas selection, making the editing target easy to inspect.
+- Angular owns application state and the workflow UI, while TUI Image Editor supplies the established canvas primitives. This keeps the demo focused on the AI editing flow without rebuilding selection, crop, and transform behavior.
+- AI configuration and related actions are grouped under one top-right AI controls entry: mode, provider, model, style preset, batch status, version history, favorites, downloads, and adding results back to the canvas live together. The bottom prompt remains the single generation surface, while image selection automatically chooses text-to-image or image-to-image.
+- AI requests go through the server-side proxy, with the token and provider settings kept in environment variables. The browser therefore never needs a credential, and the same API shape works locally and on Vercel.
+- When many results share one canvas, an optional Overview/minimap provides a global preview instead of forcing users to search the viewport manually. It shows the content bounds and current viewport, and can recenter the main canvas through a click or drag.
 
 ## Challenges and solutions
 
-- TUI Image Editor changes its internal canvas dimensions during rotation. The integration now resynchronizes the custom viewport on the next animation frame so a 30-degree rotation stays centered at the original scale.
-- Image-to-image requires sending a browser data URL as a binary image to the provider. The proxy validates the data URL, converts it to a `Blob`, and keeps provider-specific prompt protection on the server.
-- AI providers can be slow or unavailable. The UI exposes preparing, generating, and processing states, maps common authentication/quota/rate-limit errors to readable messages, and offers retry for transient failures.
-- A generated image must become a real editable canvas object. The editor adds it as a new object, scales it to the workspace, and leaves the source image intact for comparison.
+- **Challenge: TUI's image model is different from the product model.** TUI treats the loaded image as an internal canvas image, but the product needs that image to be a selectable Fabric object that can be compared with generated results. **Solution:** keep TUI's internal image as the canvas-size source, add a matching visible object for selection, and bridge resize/filter operations to the active object. Rotation and undo/redo then resynchronize the custom viewport on the next animation frame. The resize inputs also stop Backspace/Delete from reaching TUI's document-level delete shortcut, which had deleted the selected image while editing a value.
+- **Challenge: synchronizing the infinite canvas, zoom, rotation, and minimap coordinates.** Once many results are on the canvas, users cannot quickly find an object or tell whether other results already exist. The Overview/minimap must include multiple objects and rotated bounds, show the current viewport while the main canvas is zoomed or panned, and support navigation without taking over the editor. **Solution:** calculate a world bound from the canvas objects and viewport, render a derived preview through a temporary canvas, restore the main Fabric canvas state afterward, and use animation frames plus `ResizeObserver` to keep full previews and viewport updates in sync. Clicking or dragging the map converts its position back into the main canvas viewport.
 
 ## Offline demo mode
 
@@ -119,9 +117,10 @@ Use these steps to verify the project works end to end:
 3. Open `http://localhost:4200`.
 4. Keep the default sample and make sure no image is selected.
 5. Enter `A woman in a white dress standing in a bright studio, soft shadows, realistic photography.` and click `Generate`.
-6. Confirm the loading state appears, then confirm a new generated image is added to the canvas.
+6. Confirm the loading state appears, then confirm a new generated image is added to the canvas and appears in the AI versions section under the top-right AI controls.
 7. Select the original canvas image, enter `Add a black hat to the woman while keeping the background and pose unchanged.`, and click `Generate` again.
 8. Confirm the edited result is added while the original remains, then click `Export` and confirm a PNG download starts.
+9. At a mobile width, open the tools button and confirm upload, crop, text, grayscale, rotate, undo, and redo remain available.
 
 The API can be checked without exposing the token:
 

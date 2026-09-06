@@ -10,7 +10,7 @@
       @if (isEditingTitle) {
         <input #titleInput class="canvas-title-input" type="text" maxlength="80" [value]="canvasTitle" aria-label="Canvas title" (input)="onTitleInput($event)" (blur)="finishTitleEdit()" (keydown.enter)="finishTitleEdit()" (keydown.escape)="cancelTitleEdit()" />
       } @else {
-        <button type="button" class="canvas-title-button" aria-label="Rename canvas" matTooltip="Rename canvas" (click)="beginTitleEdit()">
+        <button type="button" class="canvas-title-button" aria-label="Rename canvas" matTooltip="Rename canvas" matTooltipClass="creation-top-tooltip" (click)="beginTitleEdit()">
           <strong>{{ canvasTitle }}</strong>
         </button>
       }
@@ -18,19 +18,43 @@
     </div>
 
     <div class="top-actions">
-      <button mat-icon-button aria-label="Upload image" matTooltip="Upload image" (click)="fileInput.click()">
-        <mat-icon fontSet="material-symbols-outlined">upload</mat-icon>
+      <div class="topbar-status" role="status" aria-live="polite">
+        <div class="footer-status"><span class="status-dot"></span><span>{{ statusMessage }}</span></div>
+        <span>{{ imageReady ? 'Ready to edit' : 'Loading canvas' }}</span>
+      </div>
+      <button mat-icon-button aria-label="Upload image" matTooltip="Upload image" matTooltipClass="creation-top-tooltip" (click)="fileInput.click()">
+        <app-creation-icon name="upload"></app-creation-icon>
       </button>
-      <button mat-icon-button aria-label="Undo" matTooltip="Undo" (click)="onHistoryAction('undo')">
-        <mat-icon fontSet="material-symbols-outlined">undo</mat-icon>
+      <button mat-icon-button class="export-top" aria-label="Export image" matTooltip="Export image" matTooltipClass="creation-top-tooltip" (click)="exportImage()">
+        <app-creation-icon name="download"></app-creation-icon>
       </button>
-      <button mat-icon-button aria-label="Redo" matTooltip="Redo" (click)="onHistoryAction('redo')">
-        <mat-icon fontSet="material-symbols-outlined">redo</mat-icon>
+      <button
+        mat-icon-button
+        class="minimap-toggle"
+        [attr.aria-pressed]="experimentalMinimapEnabled"
+        [attr.aria-label]="experimentalMinimapEnabled ? 'Hide minimap' : 'Show minimap'"
+        [matTooltip]="experimentalMinimapEnabled ? 'Hide minimap' : 'Show minimap'"
+        matTooltipClass="creation-top-tooltip"
+        (click)="toggleExperimentalMinimap()"
+      >
+        <app-creation-icon [name]="experimentalMinimapEnabled ? 'map' : 'map_off'"></app-creation-icon>
       </button>
-      <button mat-flat-button class="export-top" (click)="exportImage()">
-        <mat-icon fontSet="material-symbols-outlined">download</mat-icon>
-        <span>Export</span>
-      </button>
+      <div class="ai-history-control">
+        <button
+          type="button"
+          class="ai-history-toggle"
+          [attr.aria-expanded]="aiHistoryOpen"
+          aria-controls="ai-history-menu"
+          aria-label="AI controls"
+          (click)="toggleAiHistory()"
+        >
+          <app-creation-icon name="sparkle"></app-creation-icon>
+          <span>AI controls</span>
+        </button>
+        @if (aiHistoryOpen) {
+          <app-ai-history-menu id="ai-history-menu" (closed)="closeAiHistory()" (addToCanvas)="onAiHistoryImageAdded($event)"></app-ai-history-menu>
+        }
+      </div>
     </div>
   </header>
 
@@ -38,16 +62,36 @@
 
   <section class="board-shell">
     <div class="canvas-stage" role="application" aria-label="Infinite canvas workspace">
-      <app-image-editor (ready)="onEditorReady()" (statusChange)="onStatus($event)" (selectedImageChange)="onSelectedImageChange($event)" (documentChange)="onDocumentChange($event)"></app-image-editor>
+      <app-image-editor
+        [experimentalMinimapEnabled]="experimentalMinimapEnabled"
+        (experimentalMinimapEnabledChange)="onExperimentalMinimapVisibilityChange($event)"
+        (ready)="onEditorReady()"
+        (statusChange)="onStatus($event)"
+        (selectedImageChange)="onSelectedImageChange($event)"
+        (documentChange)="onDocumentChange($event)"
+      ></app-image-editor>
     </div>
 
-    <div class="board-footer">
-      <div class="footer-status"><span class="status-dot"></span><span>{{ statusMessage }}</span></div>
-      <span>{{ imageReady ? 'Ready to edit' : 'Loading canvas' }}</span>
-    </div>
+    <button
+      type="button"
+      class="mobile-tools-toggle"
+      [attr.aria-expanded]="mobileToolsOpen"
+      [attr.aria-label]="mobileToolsOpen ? 'Close editor tools' : 'Open editor tools'"
+      [matTooltip]="mobileToolsOpen ? 'Close editor tools' : 'Open editor tools'"
+      matTooltipClass="creation-top-tooltip"
+      (click)="mobileToolsOpen = !mobileToolsOpen"
+    >
+      <mat-icon fontSet="material-symbols-outlined" [attr.data-icon]="mobileToolsOpen ? 'close' : 'tune'">{{ mobileToolsOpen ? 'close' : 'tune' }}</mat-icon>
+    </button>
+
+    @if (mobileToolsOpen) {
+      <aside class="mobile-tools" aria-label="Mobile image editor tools">
+        <app-toolbar (action)="onMobileToolAction($event)" (imageSelected)="onMobileImageSelected($event)"></app-toolbar>
+      </aside>
+    }
 
     <div class="ai-composer" aria-label="AI image prompt">
-      <app-ai-generation-panel [sourceImage]="sourceImage" (imageGenerated)="onAiImage($event)"></app-ai-generation-panel>
+      <app-ai-generation-panel [sourceImage]="sourceImage" (imageGenerated)="onAiImage($event)" (errorNotice)="onAiError($event)"></app-ai-generation-panel>
     </div>
   </section>
 </main>

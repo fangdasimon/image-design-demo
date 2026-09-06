@@ -4,15 +4,18 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { AiImageResult } from './core/models/ai.models';
+import { AiError, AiImageResult } from './core/models/ai.models';
 import { AiGenerationPanelComponent } from './components/ai-generation-panel/ai-generation-panel.component';
+import { AiHistoryMenuComponent } from './components/ai-history-menu/ai-history-menu.component';
+import { CreationIconComponent } from './components/creation-icon/creation-icon.component';
 import { ImageEditorComponent } from './components/image-editor/image-editor.component';
+import { ToolbarComponent, type ToolAction } from './components/toolbar/toolbar.component';
 import { DocumentSaveResult, PersistedDocument, StorageService } from './core/storage.service';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, AiGenerationPanelComponent, ImageEditorComponent, MatButtonModule, MatIconModule, MatSnackBarModule, MatTooltipModule],
+  imports: [CommonModule, AiGenerationPanelComponent, AiHistoryMenuComponent, CreationIconComponent, ImageEditorComponent, ToolbarComponent, MatButtonModule, MatIconModule, MatSnackBarModule, MatTooltipModule],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss'
 })
@@ -21,10 +24,15 @@ export class AppComponent {
   @ViewChild('titleInput') private readonly titleInput?: ElementRef<HTMLInputElement>;
 
   imageReady = false;
+  experimentalMinimapEnabled = typeof window === 'undefined'
+    ? true
+    : !window.matchMedia('(max-width: 767px)').matches;
   statusMessage = 'Canvas ready';
   sourceImage: string | null = null;
   canvasTitle = 'Untitled canvas';
   isEditingTitle = false;
+  mobileToolsOpen = false;
+  aiHistoryOpen = false;
   saveStateLabel = 'Preparing local save...';
 
   private readonly savedDocument: Partial<PersistedDocument>;
@@ -33,16 +41,15 @@ export class AppComponent {
   private documentReady = false;
   private saveTimer?: ReturnType<typeof setTimeout>;
 
-  constructor(private readonly snackBar: MatSnackBar, private readonly storage: StorageService) {
+  constructor(
+    private readonly snackBar: MatSnackBar,
+    private readonly storage: StorageService,
+  ) {
     this.savedDocument = this.storage.readDocument();
     if (this.savedDocument.title?.trim()) {
       this.canvasTitle = this.savedDocument.title.trim();
     }
     this.pendingCanvasJson = this.savedDocument.canvasJson ?? null;
-  }
-
-  onHistoryAction(action: 'undo' | 'redo'): void {
-    void this.imageEditor?.handleAction(action);
   }
 
   onImageSelected(event: Event): void {
@@ -53,8 +60,39 @@ export class AppComponent {
     input.value = '';
   }
 
+  toggleExperimentalMinimap(): void {
+    this.experimentalMinimapEnabled = !this.experimentalMinimapEnabled;
+  }
+
+  onExperimentalMinimapVisibilityChange(visible: boolean): void {
+    this.experimentalMinimapEnabled = visible;
+  }
+
   exportImage(): void {
     void this.imageEditor?.exportImage();
+  }
+
+  onMobileToolAction(action: ToolAction): void {
+    this.mobileToolsOpen = false;
+    void this.imageEditor?.handleAction(action);
+  }
+
+  onMobileImageSelected(file: File): void {
+    this.mobileToolsOpen = false;
+    void this.imageEditor?.loadLocalImage(file);
+  }
+
+  onAiHistoryImageAdded(image: AiImageResult): void {
+    this.aiHistoryOpen = false;
+    void this.imageEditor?.addImageToCanvas(image.dataUrl);
+  }
+
+  toggleAiHistory(): void {
+    this.aiHistoryOpen = !this.aiHistoryOpen;
+  }
+
+  closeAiHistory(): void {
+    this.aiHistoryOpen = false;
   }
 
   onAiImage(image: AiImageResult): void {
@@ -71,7 +109,7 @@ export class AppComponent {
       return;
     }
 
-    this.saveStateLabel = 'Restoring locally...';
+    this.saveStateLabel = 'Loading saved canvas...';
     const restored = await this.imageEditor.restoreDocument(pendingCanvasJson);
     this.documentReady = true;
     if (restored) {
@@ -137,7 +175,21 @@ export class AppComponent {
 
   onStatus(message: string): void {
     this.statusMessage = message;
-    this.snackBar.open(message, 'Dismiss', { duration: 2600, horizontalPosition: 'right', verticalPosition: 'bottom' });
+    this.snackBar.open(message, '', {
+      duration: 2600,
+      horizontalPosition: 'center',
+      verticalPosition: 'top',
+      panelClass: ['creation-status-snackbar'],
+    });
+  }
+
+  onAiError(error: AiError): void {
+    this.snackBar.open(`${error.title}: ${error.message}`, '', {
+      duration: 4200,
+      horizontalPosition: 'center',
+      verticalPosition: 'top',
+      panelClass: ['creation-status-snackbar'],
+    });
   }
 
   private scheduleDocumentSave(): void {

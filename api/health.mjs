@@ -24,12 +24,14 @@ export default function handler(request, response) {
 }
 
 function corsHeaders() {
-  return {
-    'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
+  const headers = {
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     Vary: 'Origin'
   };
+  const allowedOrigin = process.env.CORS_ORIGIN?.trim();
+  if (allowedOrigin) headers['Access-Control-Allow-Origin'] = allowedOrigin;
+  return headers;
 }
 
 function sendJson(response, payload, status) {

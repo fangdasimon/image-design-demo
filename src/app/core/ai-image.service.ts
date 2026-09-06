@@ -6,6 +6,11 @@ import { createDemoGeneratedImage } from './demo-art';
 import { AiError } from './models/ai.models';
 import { environment } from '../../environments/environment';
 
+interface ProviderErrorPayload {
+  code?: string;
+  error?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AiImageService {
   readonly modelLabel = 'Stable Diffusion XL';
@@ -47,7 +52,7 @@ export class AiImageService {
         }),
         switchMap((response) => this.readResponse(response.body)),
         map((dataUrl) => ({ dataUrl, source: 'api' as const })),
-        catchError((error: unknown) => throwError(() => this.toAiError(error)))
+        catchError((error: unknown) => from(this.buildAiError(error)).pipe(switchMap((mapped) => throwError(() => mapped))))
       );
   }
 
@@ -91,7 +96,24 @@ export class AiImageService {
     });
   }
 
-  private toAiError(error: unknown): AiError {
+  private async buildAiError(error: unknown): Promise<AiError> {
+    const providerError = await this.readProviderError(error);
+    return this.toAiError(error, providerError);
+  }
+
+  private async readProviderError(error: unknown): Promise<ProviderErrorPayload | null> {
+    const payload = (error as HttpErrorResponse)?.error;
+    if (payload instanceof Blob) {
+      try {
+        return JSON.parse(await payload.text()) as ProviderErrorPayload;
+      } catch {
+        return null;
+      }
+    }
+    return payload && typeof payload === 'object' ? payload as ProviderErrorPayload : null;
+  }
+
+  private toAiError(error: unknown, providerError: ProviderErrorPayload | null): AiError {
     const httpError = error as HttpErrorResponse;
     const status = typeof httpError?.status === 'number' ? httpError.status : 0;
 
@@ -103,6 +125,18 @@ export class AiImageService {
     }
     if (status === 429) {
       return { title: 'Rate limit reached', message: 'The model quota is busy. Wait a moment and try again.', retryable: true };
+    }
+    if (status === 413) {
+      return { title: 'Image too large', message: 'Choose a smaller source image and try again.', retryable: false };
+    }
+    if (status === 400 && providerError?.code === 'invalid_source_image') {
+      return { title: 'Unsupported source image', message: 'Select a PNG, JPEG, WebP, or GIF image before using image-to-image.', retryable: false };
+    }
+    if (status === 400 && providerError?.code === 'invalid_prompt') {
+      return { title: 'Prompt invalid', message: 'Enter a prompt from 1 to 240 characters.', retryable: false };
+    }
+    if (status === 400) {
+      return { title: 'Request invalid', message: 'Check the prompt and source image, then try again.', retryable: false };
     }
     if (status === 0) {
       return { title: 'Connection issue', message: 'The AI service could not be reached. Check your network and retry.', retryable: true };

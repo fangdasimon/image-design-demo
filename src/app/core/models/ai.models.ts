@@ -1,4 +1,12 @@
 export type ProgressStage = 'idle' | 'preparing' | 'generating' | 'processing' | 'complete';
+export type StylePreset = 'original' | 'editorial' | 'monochrome' | 'soft-light';
+
+export const STYLE_PRESETS: ReadonlyArray<{ value: StylePreset; label: string; promptSuffix: string; description: string }> = [
+  { value: 'original', label: 'Original', promptSuffix: '', description: '' },
+  { value: 'editorial', label: 'Editorial', promptSuffix: 'editorial photography, refined composition, controlled studio light', description: 'Adds refined editorial composition and studio light' },
+  { value: 'monochrome', label: 'Monochrome', promptSuffix: 'monochrome black and white, tonal contrast, restrained palette', description: 'Adds black-and-white contrast and a restrained palette' },
+  { value: 'soft-light', label: 'Soft light', promptSuffix: 'soft natural light, gentle shadows, calm atmosphere', description: 'Adds soft natural light and gentle shadows' }
+];
 
 export interface AiImageResult {
   id: string;
@@ -19,6 +27,7 @@ export interface AiError {
 export interface AiState {
   prompt: string;
   selectedModel: string;
+  stylePreset: StylePreset;
   modelParameters: {
     guidanceScale: number;
     steps: number;
@@ -41,6 +50,7 @@ export const DEFAULT_PROMPTS = [
 export const DEFAULT_AI_STATE: AiState = {
   prompt: DEFAULT_PROMPTS[0],
   selectedModel: 'stable-diffusion-xl',
+  stylePreset: 'original',
   modelParameters: {
     guidanceScale: 7.5,
     steps: 30

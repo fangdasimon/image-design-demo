@@ -7,6 +7,7 @@ import {
 } from '../../server/ai-generation.mjs';
 
 const aiConfig = getAiConfig();
+const MAX_BODY_BYTES = 12 * 1024 * 1024;
 
 export default async function handler(request, response) {
   setHeaders(response, corsHeaders());
@@ -34,20 +35,45 @@ export default async function handler(request, response) {
 }
 
 function corsHeaders() {
-  return {
-    'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
+  const headers = {
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     Vary: 'Origin'
   };
+  const allowedOrigin = process.env.CORS_ORIGIN?.trim();
+  if (allowedOrigin) headers['Access-Control-Allow-Origin'] = allowedOrigin;
+  return headers;
 }
 
 async function readBody(request) {
-  if (request.body && typeof request.body === 'object') return request.body;
+  const contentLength = Number(readHeader(request, 'content-length') || 0);
+  if (Number.isFinite(contentLength) && contentLength > MAX_BODY_BYTES) {
+    throw Object.assign(new Error('Request body is too large.'), { status: 413 });
+  }
+  if (request.body && typeof request.body === 'object') {
+    const serializedBody = JSON.stringify(request.body) || '';
+    if (Buffer.byteLength(serializedBody, 'utf8') > MAX_BODY_BYTES) {
+      throw Object.assign(new Error('Request body is too large.'), { status: 413 });
+    }
+    return request.body;
+  }
 
   const chunks = [];
-  for await (const chunk of request) chunks.push(Buffer.from(chunk));
+  let total = 0;
+  for await (const chunk of request) {
+    const buffer = Buffer.from(chunk);
+    total += buffer.length;
+    if (total > MAX_BODY_BYTES) {
+      throw Object.assign(new Error('Request body is too large.'), { status: 413 });
+    }
+    chunks.push(buffer);
+  }
   return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+}
+
+function readHeader(request, name) {
+  if (typeof request.headers?.get === 'function') return request.headers.get(name);
+  return request.headers?.[name] || request.headers?.[name.toLowerCase()];
 }
 
 function sendJson(response, payload, status) {
